@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">GL</string>
+    <string name="tab_generator">Generador</string>
+    <string name="tab_registry">Registro</string>
+    <string name="tab_trust">Claves</string>
+    <string name="tab_contact">Contacto</string>
+
+    <string name="contact_title">Contacto</string>
+    <string name="contact_intro">Guarda una tarjeta o cuenta, un teléfono y tus apps, elige uno de cada y cópialos juntos para pegarlos donde los pidas.</string>
+    <string name="contact_card_label">Tarjeta o cuenta bancaria</string>
+    <string name="contact_phone_label">Número de teléfono</string>
+    <string name="contact_app_label">App</string>
+    <string name="contact_add">Añadir</string>
+    <string name="contact_save">Guardar</string>
+    <string name="contact_delete">Eliminar</string>
+    <string name="contact_edit">Editar</string>
+    <string name="contact_cancel">Cancelar</string>
+    <string name="contact_delete_confirm">¿Eliminar este valor? No se podrá recuperar.</string>
+    <string name="contact_empty">Sin elementos añadidos</string>
+    <string name="contact_copy">Copiar</string>
+    <string name="contact_copied">Datos copiados al portapapeles.</string>
+    <string name="contact_need_both">Elige una tarjeta, un teléfono y una app para poder copiar.</string>
+
+    <string name="trust_title">Claves públicas</string>
+    <string name="trust_intro">Fíjalas en la app cliente para que acepte las licencias de este teléfono. No es material secreto: son claves públicas. Si borras los datos de GL o cambias de dispositivo, el par se regenera y tendrás que volver a exportarlas.</string>
+    <string name="trust_encryption_title">Clave de cifrado</string>
+    <string name="trust_encryption_body">ECDH P-256. El cliente la usa para cifrarle una solicitud que solo GL puede abrir.</string>
+    <string name="trust_signing_title">Clave de firma</string>
+    <string name="trust_signing_body">ECDSA P-256. El cliente la usa para comprobar que una licencia viene de GL y no está alterada.</string>
+    <string name="trust_copy_one">Copiar esta clave</string>
+    <string name="trust_copy_all">Copiar ambas claves</string>
+    <string name="trust_copied">Claves copiadas al portapapeles.</string>
+    <string name="error_generic">No se pudo completar la operación.</string>
+    <string name="payment_done">Pago realizado</string>
+    <string name="generate_license">Generar licencia</string>
+    <string name="register_license">Registrar</string>
+    <string name="register_wait">Registrar (vuelve del envío)</string>
+    <string name="paste_hint">Pega el texto cifrado</string>
+    <string name="pegar">Pegar</string>
+    <string name="generated_message">Mensaje generado</string>
+    <string name="copiar_mensaje">Copiar mensaje</string>
+    <string name="encrypted_request">Solicitud cifrada</string>
+    <string name="generator_help">Pega la solicitud cifrada o déjala en el portapapeles con GL en primer plano.</string>
+    <string name="generator_empty_title">Sin solicitud</string>
+    <string name="generator_empty_body">Copia el envelope en el cliente y vuelve aquí, o pégalo en el campo.</string>
+    <string name="clipboard_detected">Solicitud detectada del portapapeles</string>
+    <string name="request_valid">Solicitud válida</string>
+    <string name="secundarias_title">Secundarias</string>
+    <string name="secundarias_hint">Corrige el número de secundarias antes de generar.</string>
+    <string name="license_price_charged">Precio cobrado</string>
+    <string name="import_registry">Importar</string>
+    <string name="export_registry">Exportar</string>
+    <string name="registry_empty_title">Sin licencias</string>
+    <string name="registry_empty_body">Genera una en Generador o importa un .glreg de este teléfono.</string>
+    <string name="perpetual">Perpetua</string>
+    <string name="detail_title">Detalle</string>
+    <string name="close">Cerrar</string>
+    <string name="cd_detail">Detalle de licencia</string>
+</resources>

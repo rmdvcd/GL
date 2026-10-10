@@ -1,0 +1,107 @@
+================================================================================
+GL — CLAVES PÚBLICAS PARA LA APP CLIENTE (arena.ai)
+================================================================================
+
+Generado el      : 2026-09-30
+Paquete GL       : dev.gl.license.debug
+Dispositivo      : serial 4bc9f8f3 (Android 15 / API 35, arm64-v8a)
+Versión contrato : 1
+Origen           : pestaña "Claves" de la app GL, y verificado leyendo el
+                   Android Keystore directamente por alias.
+
+--------------------------------------------------------------------------------
+AVISO IMPORTANTE: ESTAS CLAVES SON DE ESTE TELÉFONO, NO DEL PRODUCTO
+--------------------------------------------------------------------------------
+GL no trae las claves de serie: las genera en el Android Keystore local la
+primera vez que se usan. Si borras los datos de GL, desinstalas la app, haces
+`adb shell pm clear dev.gl.license.debug` o cambias de dispositivo, sale otro par
+y arena.ai rechazará todas las licencias.
+
+Regla: exporta estas huellas DESPUÉS del último `pm clear` / reinstalación, no
+antes. Si el par cambia, hay que volver a fijarlas en el cliente.
+
+No es material secreto (son claves públicas), pero sí es material de
+confianza: fijarlas es lo que impide que alguien con otro par firme licencias
+que tu app acepte.
+
+--------------------------------------------------------------------------------
+CLAVE DE CIFRADO (ECDH)
+--------------------------------------------------------------------------------
+Uso        : el cliente cifra con ella una solicitud que solo GL puede abrir.
+Alias      : gl.ecdh.p256.v1
+Algoritmo  : EC P-256 (secp256r1 / prime256v1), acuerdo de clave ECDH
+Formato    : SPKI DER, codificado en Base64 (estándar, sin cabeceras)
+
+Base64:
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEx8qrf/vWtLqwfVt2BiCMFpDinK58+T503G7wzuk9IkZckEVgnqZPDbWrymDIUQZ3OWII8wUAykzJ3zL7drpj5g==
+
+SHA-256 de la clave pública (huella, 16 grupos de 4 hex):
+sha256:7b51:9e55:7de4:87a8:7824:4fbb:1497:0cc7:2a52:d40e:bed3:d919:0c37:28a4:b533:538c
+
+--------------------------------------------------------------------------------
+CLAVE DE FIRMA (ECDSA)
+--------------------------------------------------------------------------------
+Uso        : el cliente verifica con ella que una licencia viene de GL y que no
+             ha sido alterada por el camino.
+Alias      : gl.sign.ec.p256.v1
+Algoritmo  : EC P-256 (secp256r1 / prime256v1), firmas ECDSA
+Formato    : SPKI DER, codificado en Base64 (estándar, sin cabeceras)
+
+Base64:
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE+UpBZNnTcsbL5yR5LQRD1qATSub6tV7dgaVKNgXjFUbJFbxWmUQWOQvqsOBZmt7bKDdu3iLW02Z/RtiPfa3OWQ==
+
+SHA-256 de la clave pública (huella, 16 grupos de 4 hex):
+sha256:8a91:bcfb:19dc:af1b:af6e:0bb7:c82a:9410:e9b5:aa1d:fea0:cab8:241c:52d1:bcbd:6888
+
+--------------------------------------------------------------------------------
+PAYLOAD JSON PARA PEGAR DIRECTO EN EL CÓDIGO
+--------------------------------------------------------------------------------
+Es exactamente lo que produce el botón "Copiar ambas claves" de la app. El
+nombre de cada campo es explícito, así que no hay ambigüedad de asignación.
+
+{
+  "contractVersion": 1,
+  "encryptionKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEx8qrf/vWtLqwfVt2BiCMFpDinK58+T503G7wzuk9IkZckEVgnqZPDbWrymDIUQZ3OWII8wUAykzJ3zL7drpj5g==",
+  "encryptionFingerprint": "sha256:7b51:9e55:7de4:87a8:7824:4fbb:1497:0cc7:2a52:d40e:bed3:d919:0c37:28a4:b533:538c",
+  "signingKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE+UpBZNnTcsbL5yR5LQRD1qATSub6tV7dgaVKNgXjFUbJFbxWmUQWOQvqsOBZmt7bKDdu3iLW02Z/RtiPfa3OWQ==",
+  "signingFingerprint": "sha256:8a91:bcfb:19dc:af1b:af6e:0bb7:c82a:9410:e9b5:aa1d:fea0:cab8:241c:52d1:bcbd:6888"
+}
+
+--------------------------------------------------------------------------------
+DATOS DE CONTRATO QUE ACOMPAÑAN A LAS CLAVES
+--------------------------------------------------------------------------------
+contractVersion : 1
+alg             : ECIES-P256-AES256GCM-v1
+keyId (firma)   : gl-sign-v1
+curva           : secp256r1 (P-256 / prime256v1) en ambas claves
+
+Si en algún momento cambian la curva, el KDF o el AAD, la versión de contrato
+sube a 2 y estas claves dejarían de servir aunque el par siga igual.
+
+--------------------------------------------------------------------------------
+CÓMO VERIFICAR QUE NO TE HAS EQUIVOCADO AL COPIAR
+--------------------------------------------------------------------------------
+La huella es SHA-256 de los bytes SPKI DER crudos (antes de pasar a Base64).
+Para comprobarla:
+
+  1. Decodifica la clave Base64 a bytes binarios (NO a texto).
+  2. Saca SHA-256 de esos bytes.
+  3. Pásalo a hex en minúsculas y agrúpalo de 4 en 4, separado por ':'.
+  4. Antepón "sha256:".
+
+Las dos huellas de este fichero se han recalculado y coinciden con las que
+muestra la app.
+
+Ejemplo (Python):
+
+    import base64, hashlib
+    der = base64.b64decode(KEY_B64)
+    h = hashlib.sha256(der).hexdigest()
+    print("sha256:" + ":".join(h[i:i+4] for i in range(0, 64, 4)))
+
+--------------------------------------------------------------------------------
+NOTA SOBRE ESTE FICHERO
+--------------------------------------------------------------------------------
+Está fuera del repo de GL a propósito: son claves de un dispositivo concreto,
+no material del proyecto, y no deben acabar en control de versiones.
+================================================================================

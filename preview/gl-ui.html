@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>GL — vista de pantallas</title>
+  <style>
+    :root {
+      --bg:#0B0F14; --surf:#141A22; --hi:#1C2530; --on:#F2F4F7; --mute:#9AA4B2;
+      --gold:#E0B13A; --onp:#1A1404; --err:#FF8A80; --ok:#5EE2A6; --line:#3A4554;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin:0; font-family: system-ui, sans-serif; background:#05070a; color:var(--on);
+      padding:24px;
+    }
+    h1 { color:var(--gold); font-weight:600; margin:0 0 8px; }
+    .note { color:var(--mute); max-width:920px; margin-bottom:24px; line-height:1.45; }
+    .phones { display:flex; flex-wrap:wrap; gap:28px; }
+    .phone {
+      width:320px; height:640px; background:var(--bg); border:1px solid var(--line);
+      border-radius:28px; overflow:hidden; display:flex; flex-direction:column;
+      box-shadow:0 12px 40px #0008;
+    }
+    .bar { height:28px; display:flex; align-items:center; justify-content:center; font-size:11px; color:var(--mute); }
+    .screen { flex:1; padding:20px; overflow:auto; text-align:center; display:flex; flex-direction:column; align-items:center; }
+    .title { color:var(--gold); font-size:26px; font-weight:600; margin:0 0 8px; width:100%; text-align:center; }
+    .sub { color:var(--mute); font-size:13px; line-height:1.4; margin:0 0 16px; width:100%; text-align:center; }
+    label { font-size:12px; color:var(--mute); display:block; margin-bottom:4px; text-align:center; }
+    .field {
+      width:100%; background:var(--surf); border:1px solid var(--line); border-radius:12px;
+      padding:12px; color:var(--on); margin-bottom:10px; min-height:44px; text-align:center;
+    }
+    .pin { letter-spacing:6px; }
+    .btn {
+      width:auto; min-height:40px; height:auto; border:0; border-radius:12px; font-weight:600; cursor:default;
+      margin:8px auto 0; font-size:14px; padding:10px 18px; display:inline-block;
+    }
+    .actions { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; width:100%; }
+    .primary { background:var(--gold); color:var(--onp); }
+    .ghost { background:transparent; color:var(--gold); border:1px solid var(--line); }
+    .card { background:var(--surf); border-radius:16px; padding:14px; margin:10px 0; width:100%; text-align:center; }
+    .meta { display:flex; font-size:13px; margin:4px 0; justify-content:center; gap:8px; }
+    .meta span:first-child { color:var(--mute); }
+    .row { display:flex; align-items:center; justify-content:center; gap:8px; min-height:44px; font-size:14px; width:100%; }
+    .chip { display:inline-block; font-size:11px; padding:4px 10px; border-radius:16px; border:1px solid var(--line); color:var(--gold); margin-bottom:8px; }
+    .ok { color:var(--ok); font-size:13px; }
+    .nav { height:56px; background:var(--surf); display:flex; border-top:1px solid var(--line); }
+    .nav div { flex:1; display:flex; align-items:center; justify-content:center; font-size:20px; color:var(--mute); }
+    .nav .on { color:var(--gold); }
+    .cd { color:var(--gold); font-size:13px; font-weight:600; margin-top:6px; }
+    .banner { background:rgba(94,226,166,.14); color:var(--ok); padding:10px; border-radius:12px; font-size:13px; margin:8px 0; }
+    .empty { text-align:center; color:var(--mute); padding:28px 8px; font-size:13px; }
+    caption { display:block; text-align:center; color:var(--mute); font-size:12px; margin-top:8px; }
+  </style>
+</head>
+<body>
+  <h1>GL — Generador de Licencias</h1>
+  <p class="note">Maqueta estática del tema real (oscuro, oro, 52&nbsp;dp). No es el APK: este entorno no tiene emulador Android. En tu PC: Android Studio → Run en USB/emulador (API 26+).</p>
+  <div class="phones">
+
+    <div>
+      <div class="phone">
+        <div class="bar">9:41</div>
+        <div class="screen" style="display:flex;flex-direction:column;justify-content:center;">
+          <div class="title" style="text-align:center;">GL</div>
+          <p class="sub" style="text-align:center;">Crea un PIN de 8 dígitos</p>
+          <p class="sub" style="text-align:center;">Este PIN protege el registro en este teléfono. No hay recuperación. No se muestran licencias aquí.</p>
+          <label>PIN</label>
+          <div class="field pin">••••••••</div>
+          <div class="ok">PIN válido</div>
+          <label>Confirmar PIN</label>
+          <div class="field pin">••••••••</div>
+          <button class="btn primary">Guardar PIN</button>
+        </div>
+      </div>
+      <caption>Bloqueo / alta de PIN</caption>
+    </div>
+
+    <div>
+      <div class="phone">
+        <div class="bar">9:41</div>
+        <div class="screen">
+          <div class="title">Generador</div>
+          <p class="sub">Pega la solicitud cifrada o déjala en el portapapeles con GL en primer plano.</p>
+          <div class="chip">Solicitud detectada del portapapeles</div>
+          <div class="field" style="min-height:88px;font-size:11px;color:var(--mute);">{"v":1,"alg":"ECIES-P256-AES256GCM-v1",…}</div>
+          <div class="card">
+            <strong>Solicitud válida</strong>
+            <div class="meta"><span>Nombre</span><span>Ana Perez</span></div>
+            <div class="meta"><span>CI</span><span>85010112345</span></div>
+            <div class="meta"><span>Vía</span><span>WHATSAPP</span></div>
+            <div class="meta"><span>Tipo</span><span>MENSUAL</span></div>
+          </div>
+          <div class="row">☑ Pago realizado</div>
+          <div class="actions">
+            <button class="btn primary">Generar licencia</button>
+            <button class="btn ghost">Registrar (vuelve del envío)</button>
+          </div>
+        </div>
+        <div class="nav"><div class="on">🔑</div><div>☰</div></div>
+      </div>
+      <caption>Generador (solicitud válida)</caption>
+    </div>
+
+    <div>
+      <div class="phone">
+        <div class="bar">9:41</div>
+        <div class="screen">
+          <div class="title">Registro</div>
+          <p class="sub">2 en este teléfono</p>
+          <div class="actions">
+            <button class="btn ghost">Importar</button>
+            <button class="btn primary">Exportar</button>
+          </div>
+          <div class="card">
+            <strong>Ana Perez</strong>
+            <div class="sub" style="margin:4px 0 0;">MENSUAL · WHATSAPP</div>
+            <div class="sub">2026-01-01T00:00:00Z</div>
+            <div class="cd">12d 04:18:02</div>
+          </div>
+          <div class="card">
+            <strong>Luis Mora</strong>
+            <div class="sub" style="margin:4px 0 0;">PERPETUA · SMS</div>
+            <div class="cd">Perpetua</div>
+          </div>
+        </div>
+        <div class="nav"><div>🔑</div><div class="on">☰</div></div>
+      </div>
+      <caption>Registro + countdown</caption>
+    </div>
+
+    <div>
+      <div class="phone">
+        <div class="bar">9:41</div>
+        <div class="screen">
+          <div class="title" style="font-size:22px;">← Detalle</div>
+          <div class="card">
+            <div class="meta"><span>Nombre</span><span>Ana Perez</span></div>
+            <div class="meta"><span>CI</span><span>85010112345</span></div>
+            <div class="meta"><span>Tel</span><span>+5355512345</span></div>
+            <div class="meta"><span>Tipo</span><span>MENSUAL</span></div>
+            <div class="meta"><span>Estado</span><span>ACTIVA</span></div>
+            <div class="meta"><span>Vence</span><span>2026-01-31T00:00:00Z</span></div>
+            <div class="cd">12d 04:18:02</div>
+          </div>
+        </div>
+      </div>
+      <caption>Detalle de licencia</caption>
+    </div>
+
+  </div>
+</body>
+</html>
