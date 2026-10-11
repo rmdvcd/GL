@@ -2,7 +2,7 @@
 
 Aplicación Android nativa **offline** para un desarrollador individual que emite licencias de **sus propias** apps web/móviles. No hay backend, analytics, publicidad ni telemetría.
 
-Nombre: **GL**. Paquete: `dev.gl.license`. Versión actual: `versionCode 2` / `versionName 1.1.0`.
+Nombre: **GL**. Paquete: `dev.gl.license`. Versión actual: `versionCode 3` / `versionName 1.2.0`.
 
 ## Requisitos
 
@@ -122,7 +122,7 @@ Room **v5**, SQLCipher, tablas `licenses` y `contact_methods`:
 
 v1→v2 añade `appName TEXT NOT NULL DEFAULT ''` en `GlMigrations.M_1_2`. v2→v3 crea `contact_methods` en `GlMigrations.M_2_3`. v3→v4 añade `secundarias INTEGER` y `precioCobrado INTEGER`, ambos opcionales, en `GlMigrations.M_3_4`. v4→v5 añade `codigoCorto TEXT` (opcional, código SPVI2) en `GlMigrations.M_4_5`.
 
-Orden: `issuedAtIso DESC`. Migraciones: `GlMigrations.ALL` (vacío). Passphrase 32 B envuelta con AES-GCM del Keystore (`AAD=gl-db-v1`), ciphertext en `gl_db_meta`. El IV lo genera el Keystore (`setRandomizedEncryptionRequired(true)`) y se persiste en `w_iv`.
+Orden: `issuedAtIso DESC`. Migraciones: `GlMigrations.ALL` contiene `M_1_2`, `M_2_3`, `M_3_4` y `M_4_5`; no se usa migración destructiva. Passphrase 32 B envuelta con AES-GCM del Keystore (`AAD=gl-db-v1`), ciphertext en `gl_db_meta`. El IV lo genera el Keystore (`setRandomizedEncryptionRequired(true)`) y se persiste en `w_iv`.
 
 Exportación: `docs/GLREG.md`.
 

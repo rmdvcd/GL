@@ -29,4 +29,16 @@ class Spvi23CodecTest {
             Spvi23.descomprimirPunto(ByteArray(33) { 0x04 })
         }
     }
+
+    @Test
+    fun puntoConCoordenadaFueraDelCampoLanza() {
+        val p = "ffffffff00000001000000000000000000000000ffffffffffffffffffffffff"
+            .chunked(2)
+            .map { it.toInt(16).toByte() }
+            .toByteArray()
+
+        assertThrows(IllegalArgumentException::class.java) {
+            Spvi23.descomprimirPunto(byteArrayOf(0x02) + p)
+        }
+    }
 }

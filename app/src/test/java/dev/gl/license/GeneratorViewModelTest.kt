@@ -184,6 +184,16 @@ class GeneratorViewModelTest {
     }
 
     @Test
+    fun textoQueMencionaSpviSinCodigoMuestraAviso023() = runTest {
+        val vm = vm()
+        vm.onRawChange("Solicitud SPVI sin codigo")
+
+        assertThat(vm.ui.value.solicitud).isNull()
+        assertThat(vm.ui.value.spvi).isNull()
+        assertThat(vm.ui.value.error).isEqualTo(AppError.SpviNoEs023.userMessage)
+    }
+
+    @Test
     fun generarSpviEmiteMensajeConCodigo() = runTest {
         val vm = vm(puerta = PuertaFake(solicitud = solSpvi(), codigo = "SPVI2:CODIGO"))
         vm.onRawChange("SPVIR1:AAAA")

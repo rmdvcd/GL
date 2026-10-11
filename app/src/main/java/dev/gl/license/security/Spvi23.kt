@@ -45,6 +45,7 @@ object Spvi23 {
     fun descomprimirPunto(c: ByteArray): PublicKey {
         require(c.size == 33 && (c[0] == 0x02.toByte() || c[0] == 0x03.toByte())) { "spvi-punto" }
         val x = BigInteger(1, c.copyOfRange(1, 33))
+        require(x < P) { "spvi-punto" }
         val rhs = x.pow(3).subtract(x.multiply(BigInteger.valueOf(3))).add(B).mod(P)
         var y = rhs.modPow(P.add(BigInteger.ONE).shiftRight(2), P)
         if (!y.multiply(y).mod(P).equals(rhs)) throw IllegalArgumentException("spvi-punto")

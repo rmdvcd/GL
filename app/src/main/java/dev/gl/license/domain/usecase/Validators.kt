@@ -101,6 +101,7 @@ object FieldValidator {
         }
         if (l.id.isBlank() || l.id.length > 64) return Outcome.Err(AppError.InvalidPayload)
         try {
+            Instant.parse(l.requestedAtIso)
             Instant.parse(l.issuedAtIso)
             l.expiresAtIso?.let { Instant.parse(it) }
         } catch (_: DateTimeParseException) {
