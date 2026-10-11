@@ -1,6 +1,7 @@
 package dev.gl.license
 
 import com.google.common.truth.Truth.assertThat
+import dev.gl.license.domain.model.ContactKind
 import dev.gl.license.domain.model.ContactoMetodo
 import dev.gl.license.domain.repository.ContactMethodRepository
 import dev.gl.license.domain.repository.SecureClock
@@ -154,6 +155,7 @@ class ContactViewModelTest {
         vm.addApp("SPVI")
 
         assertThat(vm.ui.value.message).isEqualTo("Añadido a la lista.")
+        assertThat(vm.ui.value.feedbackKind).isEqualTo(ContactKind.APP)
     }
 
     @Test

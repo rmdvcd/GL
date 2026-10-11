@@ -36,13 +36,13 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
@@ -55,7 +55,8 @@ import dev.gl.license.presentation.components.GlCard
 import dev.gl.license.presentation.components.GlPrimaryButton
 import dev.gl.license.presentation.components.GlSecondaryButton
 import dev.gl.license.presentation.components.MetaRow
-import dev.gl.license.presentation.components.ScreenTitle
+import dev.gl.license.presentation.components.ScreenHeader
+import dev.gl.license.presentation.components.SectionLabel
 import dev.gl.license.presentation.components.StatusBanner
 import dev.gl.license.presentation.theme.GlDimens
 import dev.gl.license.presentation.theme.GlMotion
@@ -70,9 +71,11 @@ fun GeneratorScreen(
     val clip = LocalClipboardManager.current
     val owner = LocalLifecycleOwner.current
     val view = LocalView.current
+    val clipboardDetectedDescription = stringResource(R.string.cd_clipboard_detected)
+    val encryptedRequestDescription = stringResource(R.string.cd_encrypted_request)
 
     val shareLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
+        ActivityResultContracts.StartActivityForResult(),
     ) { vm.onReturnedFromShare() }
 
     LaunchedEffect(Unit) {
@@ -89,36 +92,42 @@ fun GeneratorScreen(
             try {
                 shareLauncher.launch(intent)
             } catch (_: Exception) {
+                // Si no hay app de destino, la licencia sigue disponible para registrar.
                 vm.onReturnedFromShare()
             }
         }
     }
 
     DisposableEffect(screenVisible, owner) {
-        val obs = LifecycleEventObserver { _, e ->
-            if (e == Lifecycle.Event.ON_RESUME && screenVisible && view.hasWindowFocus()) {
-                vm.onForegroundClipboard(clip.getText()?.toString(), windowHasFocus = true, resumed = true)
+        val obs = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME && screenVisible && view.hasWindowFocus()) {
+                vm.onForegroundClipboard(
+                    clip.getText()?.toString(),
+                    windowHasFocus = true,
+                    resumed = true,
+                )
             }
-            if (e == Lifecycle.Event.ON_RESUME) vm.onReturnedFromShare()
+            if (event == Lifecycle.Event.ON_RESUME) vm.onReturnedFromShare()
         }
         owner.lifecycle.addObserver(obs)
         onDispose { owner.lifecycle.removeObserver(obs) }
     }
 
     Column(
-        Modifier
+        modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(GlDimens.screen),
-        horizontalAlignment = Alignment.CenterHorizontally
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        ScreenTitle(stringResource(R.string.tab_generator))
-        Text(
-            stringResource(R.string.generator_help),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+        ScreenHeader(
+            title = stringResource(R.string.tab_generator),
+            supportingText = stringResource(R.string.generator_help),
         )
         Spacer(Modifier.height(GlDimens.gap))
+        SectionLabel(stringResource(R.string.generator_request_step))
+        Spacer(Modifier.height(8.dp))
+
         AnimatedVisibility(
             visible = ui.clipboardCaptured,
             enter = fadeIn(tween(GlMotion.normal)),
@@ -126,7 +135,7 @@ fun GeneratorScreen(
         ) {
             Box(
                 modifier = Modifier.fillMaxWidth(),
-                contentAlignment = Alignment.Center
+                contentAlignment = Alignment.Center,
             ) {
                 SuggestionChip(
                     onClick = {},
@@ -134,154 +143,106 @@ fun GeneratorScreen(
                     label = { Text(stringResource(R.string.clipboard_detected)) },
                     modifier = Modifier.semantics {
                         liveRegion = LiveRegionMode.Polite
-                        contentDescription = "Solicitud detectada del portapapeles"
-                    }
+                        contentDescription = clipboardDetectedDescription
+                    },
                 )
             }
         }
+
         OutlinedTextField(
             value = ui.raw,
             onValueChange = vm::onRawChange,
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = GlDimens.field)
-                .semantics { contentDescription = "Solicitud cifrada" },
+                .semantics { contentDescription = encryptedRequestDescription },
             label = { Text(stringResource(R.string.encrypted_request)) },
-            placeholder = { Text(stringResource(R.string.paste_hint)) }
+            placeholder = { Text(stringResource(R.string.paste_hint)) },
+            minLines = 4,
         )
         Spacer(Modifier.height(8.dp))
         GlSecondaryButton(
             text = stringResource(R.string.pegar),
-            onClick = { vm.onRawChange(clip.getText()?.toString().orEmpty()) }
+            onClick = { vm.onRawChange(clip.getText()?.toString().orEmpty()) },
         )
         Spacer(Modifier.height(8.dp))
         StatusBanner(error = ui.error, success = ui.success)
+
         if (ui.raw.isBlank() && ui.solicitud == null && ui.spvi == null) {
             EmptyState(
-                stringResource(R.string.generator_empty_title),
-                stringResource(R.string.generator_empty_body)
+                title = stringResource(R.string.generator_empty_title),
+                body = stringResource(R.string.generator_empty_body),
             )
         }
+
         AnimatedVisibility(
             visible = ui.solicitud != null,
             enter = fadeIn(tween(GlMotion.normal)),
             exit = fadeOut(tween(GlMotion.fast)),
         ) {
-            ui.solicitud?.let { r ->
+            ui.solicitud?.let { request ->
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Spacer(Modifier.height(GlDimens.gap))
-                    GlCard {
-                        Text(
-                            stringResource(R.string.request_valid),
-                            style = MaterialTheme.typography.titleMedium,
-                            textAlign = TextAlign.Center
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        MetaRow("Nombre", "${r.firstName} ${r.lastName}")
-                        MetaRow("CI", r.nationalId)
-                        MetaRow("Vía", r.channel.name)
-                        MetaRow("Tel", r.phone)
-                        MetaRow("Dispositivo", r.deviceId)
-                        MetaRow("App", r.appName)
-                        MetaRow("Tipo", r.type.name)
-                        MetaRow("Fecha", r.requestedAtIso)
-                    }
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .height(GlDimens.touch)
-                            .toggleable(value = ui.paid, role = Role.Checkbox, onValueChange = vm::setPaid),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Checkbox(checked = ui.paid, onCheckedChange = null)
-                        Text(stringResource(R.string.payment_done))
-                    }
-                    GlPrimaryButton(
-                        text = stringResource(R.string.generate_license),
-                        onClick = vm::generateLicense,
-                        enabled = ui.paid && !ui.loading,
-                        loading = ui.loading && ui.encryptedLicense == null
+                    V1RequestCard(
+                        firstName = request.firstName,
+                        lastName = request.lastName,
+                        nationalId = request.nationalId,
+                        channel = request.channel.name,
+                        phone = request.phone,
+                        deviceId = request.deviceId,
+                        appName = request.appName,
+                        type = request.type.name,
+                        requestedAt = request.requestedAtIso,
                     )
-                    Spacer(Modifier.height(8.dp))
-                    GlSecondaryButton(
-                        text = stringResource(
-                            if (ui.canRegister) R.string.register_license else R.string.register_wait
-                        ),
-                        onClick = vm::registerNow,
-                        enabled = ui.canRegister && !ui.loading
+                    Spacer(Modifier.height(GlDimens.gap))
+                    PaymentAndActions(
+                        paid = ui.paid,
+                        loading = ui.loading,
+                        hasEncryptedLicense = ui.encryptedLicense != null,
+                        canRegister = ui.canRegister,
+                        onPaidChange = vm::setPaid,
+                        onGenerate = vm::generateLicense,
+                        onRegister = vm::registerNow,
                     )
                 }
             }
         }
+
         AnimatedVisibility(
             visible = ui.spvi != null,
             enter = fadeIn(tween(GlMotion.normal)),
             exit = fadeOut(tween(GlMotion.fast)),
         ) {
-            ui.spvi?.let { s ->
+            ui.spvi?.let { request ->
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Spacer(Modifier.height(GlDimens.gap))
-                    GlCard {
-                        Text(
-                            stringResource(R.string.request_valid),
-                            style = MaterialTheme.typography.titleMedium,
-                            textAlign = TextAlign.Center
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        MetaRow("Nombre", "${s.nombre} ${s.apellidos}")
-                        MetaRow("CI", s.ci)
-                        MetaRow("Vía", s.via.name)
-                        MetaRow("Tel", s.telefono)
-                        MetaRow("Dispositivo", s.deviceId)
-                        MetaRow("App", "SPVI")
-                        MetaRow("Tipo", s.tipo.name)
-                        MetaRow("Fecha", s.solicitadaEn)
-                        MetaRow("Apps secundarias", s.secundarias.toString())
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            PrecioTabla.desglose(s.tipo, s.secundarias),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.primary,
-                            textAlign = TextAlign.Center
-                        )
-                        if (ui.renuevaAviso != null) {
-                            Spacer(Modifier.height(8.dp))
-                            Text(
-                                ui.renuevaAviso.orEmpty(),
-                                style = MaterialTheme.typography.bodyMedium,
-                                textAlign = TextAlign.Center
-                            )
-                        }
-                    }
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .height(GlDimens.touch)
-                            .toggleable(value = ui.paid, role = Role.Checkbox, onValueChange = vm::setPaid),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Checkbox(checked = ui.paid, onCheckedChange = null)
-                        Text(stringResource(R.string.payment_done))
-                    }
-                    GlPrimaryButton(
-                        text = stringResource(R.string.generate_license),
-                        onClick = vm::generateLicense,
-                        enabled = ui.paid && !ui.loading,
-                        loading = ui.loading && ui.encryptedLicense == null
+                    SpviRequestCard(
+                        firstName = request.nombre,
+                        lastName = request.apellidos,
+                        nationalId = request.ci,
+                        channel = request.via.name,
+                        phone = request.telefono,
+                        deviceId = request.deviceId,
+                        type = request.tipo.name,
+                        requestedAt = request.solicitadaEn,
+                        secundarias = request.secundarias,
+                        priceBreakdown = PrecioTabla.desglose(request.tipo, request.secundarias),
+                        renewalNotice = ui.renuevaAviso,
                     )
-                    Spacer(Modifier.height(8.dp))
-                    GlSecondaryButton(
-                        text = stringResource(
-                            if (ui.canRegister) R.string.register_license else R.string.register_wait
-                        ),
-                        onClick = vm::registerNow,
-                        enabled = ui.canRegister && !ui.loading
+                    Spacer(Modifier.height(GlDimens.gap))
+                    PaymentAndActions(
+                        paid = ui.paid,
+                        loading = ui.loading,
+                        hasEncryptedLicense = ui.encryptedLicense != null,
+                        canRegister = ui.canRegister,
+                        onPaidChange = vm::setPaid,
+                        onGenerate = vm::generateLicense,
+                        onRegister = vm::registerNow,
                     )
                 }
             }
         }
+
         AnimatedVisibility(
             visible = ui.spvi != null && ui.shareBody != null,
             enter = fadeIn(tween(GlMotion.normal)),
@@ -289,19 +250,159 @@ fun GeneratorScreen(
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Spacer(Modifier.height(GlDimens.gap))
-                OutlinedTextField(
-                    value = ui.shareBody.orEmpty(),
-                    onValueChange = {},
-                    readOnly = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text(stringResource(R.string.generated_message)) }
-                )
-                Spacer(Modifier.height(8.dp))
-                GlSecondaryButton(
-                    text = stringResource(R.string.copiar_mensaje),
-                    onClick = { ui.shareBody?.let { clip.setText(AnnotatedString(it)) } }
-                )
+                GlCard {
+                    SectionLabel(stringResource(R.string.generator_response_step))
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = ui.shareBody.orEmpty(),
+                        onValueChange = {},
+                        readOnly = true,
+                        minLines = 5,
+                        maxLines = 10,
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text(stringResource(R.string.generated_message)) },
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    GlSecondaryButton(
+                        text = stringResource(R.string.copiar_mensaje),
+                        onClick = { ui.shareBody?.let { clip.setText(AnnotatedString(it)) } },
+                    )
+                }
             }
         }
+        Spacer(Modifier.height(24.dp))
     }
+}
+
+@Composable
+private fun V1RequestCard(
+    firstName: String,
+    lastName: String,
+    nationalId: String,
+    channel: String,
+    phone: String,
+    deviceId: String,
+    appName: String,
+    type: String,
+    requestedAt: String,
+) {
+    GlCard {
+        RequestCardTitle()
+        MetaRow(stringResource(R.string.field_name), "$firstName $lastName")
+        MetaRow(stringResource(R.string.field_national_id), nationalId)
+        MetaRow(stringResource(R.string.field_channel), channel)
+        MetaRow(stringResource(R.string.field_phone), phone)
+        MetaRow(stringResource(R.string.field_device), deviceId)
+        MetaRow(stringResource(R.string.field_app), appName)
+        MetaRow(stringResource(R.string.field_type), type)
+        MetaRow(stringResource(R.string.field_requested_at), requestedAt)
+    }
+}
+
+@Composable
+private fun SpviRequestCard(
+    firstName: String,
+    lastName: String,
+    nationalId: String,
+    channel: String,
+    phone: String,
+    deviceId: String,
+    type: String,
+    requestedAt: String,
+    secundarias: Int,
+    priceBreakdown: String,
+    renewalNotice: String?,
+) {
+    GlCard {
+        RequestCardTitle()
+        MetaRow(stringResource(R.string.field_name), "$firstName $lastName")
+        MetaRow(stringResource(R.string.field_national_id), nationalId)
+        MetaRow(stringResource(R.string.field_channel), channel)
+        MetaRow(stringResource(R.string.field_phone), phone)
+        MetaRow(stringResource(R.string.field_device), deviceId)
+        MetaRow(stringResource(R.string.field_app), "SPVI")
+        MetaRow(stringResource(R.string.field_type), type)
+        MetaRow(stringResource(R.string.field_requested_at), requestedAt)
+        MetaRow(stringResource(R.string.field_secondary_apps), secundarias.toString())
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = priceBreakdown,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.primary,
+            textAlign = TextAlign.Start,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        if (renewalNotice != null) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = renewalNotice,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
+@Composable
+private fun RequestCardTitle() {
+    Text(
+        text = stringResource(R.string.request_valid),
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.primary,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth(),
+    )
+    Spacer(Modifier.height(6.dp))
+}
+
+@Composable
+private fun PaymentAndActions(
+    paid: Boolean,
+    loading: Boolean,
+    hasEncryptedLicense: Boolean,
+    canRegister: Boolean,
+    onPaidChange: (Boolean) -> Unit,
+    onGenerate: () -> Unit,
+    onRegister: () -> Unit,
+) {
+    GlCard(contentAlignment = Alignment.CenterHorizontally) {
+        SectionLabel(stringResource(R.string.generator_payment_step))
+        Text(
+            text = stringResource(R.string.generator_payment_supporting),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(6.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(GlDimens.touch)
+                .toggleable(
+                    value = paid,
+                    role = Role.Checkbox,
+                    onValueChange = onPaidChange,
+                ),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+        ) {
+            Checkbox(checked = paid, onCheckedChange = null)
+            Text(stringResource(R.string.payment_done))
+        }
+    }
+    Spacer(Modifier.height(8.dp))
+    GlPrimaryButton(
+        text = stringResource(R.string.generate_license),
+        onClick = onGenerate,
+        enabled = paid && !loading,
+        loading = loading && !hasEncryptedLicense,
+    )
+    Spacer(Modifier.height(8.dp))
+    GlSecondaryButton(
+        text = stringResource(if (canRegister) R.string.register_license else R.string.register_wait),
+        onClick = onRegister,
+        enabled = canRegister && !loading,
+    )
 }

@@ -44,8 +44,13 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.gl.license.R
+import dev.gl.license.domain.model.ContactKind
 import dev.gl.license.presentation.components.GlCard
 import dev.gl.license.presentation.components.GlPrimaryButton
+import dev.gl.license.presentation.components.GlSecondaryButton
+import dev.gl.license.presentation.components.ScreenHeader
+import dev.gl.license.presentation.components.StatusBanner
+import dev.gl.license.presentation.theme.GlDimens
 
 /**
  * Recoge el dato de pago del cliente y lo deja en el portapapeles con el
@@ -74,36 +79,32 @@ fun ContactScreen(vm: ContactViewModel = hiltViewModel()) {
     val saveAppLabel = stringResource(R.string.contact_save)
     val copyLabel = stringResource(R.string.contact_copy)
     val copiedMessage = stringResource(R.string.contact_copied)
+    val copyContactDescription = stringResource(R.string.cd_copy_contact)
 
     Column(
         Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp)
+            .padding(GlDimens.screen)
             .semantics { contentDescription = "Contacto" },
-        horizontalAlignment = Alignment.CenterHorizontally
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Spacer(Modifier.height(16.dp))
-        Text(
-            stringResource(R.string.contact_title),
-            style = MaterialTheme.typography.titleLarge,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth()
+        ScreenHeader(
+            title = stringResource(R.string.contact_title),
+            supportingText = stringResource(R.string.contact_intro),
         )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            stringResource(R.string.contact_intro),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(GlDimens.gap))
 
         GlCard {
             PickerBlock(
                 label = stringResource(R.string.contact_card_label),
                 options = ui.cards,
                 draft = cardDraft,
-                onDraftChange = { cardDraft = it; copied = false },
+                onDraftChange = {
+                    cardDraft = it
+                    copied = false
+                    vm.clearFeedback()
+                },
                 addLabel = addCardLabel,
                 saveLabel = saveCardLabel,
                 editing = ui.editingCard != null,
@@ -112,10 +113,16 @@ fun ContactScreen(vm: ContactViewModel = hiltViewModel()) {
                     cardDraft = ""
                 },
                 onEdit = { cardDraft = vm.beginEditCard(it); copied = false },
-                onDelete = vm::removeCard,
-                onSelect = vm::selectCard,
+                onDelete = { value ->
+                    vm.removeCard(value)
+                    copied = false
+                },
+                onSelect = { value ->
+                    vm.selectCard(value)
+                    copied = false
+                },
                 selected = ui.selectedCard,
-                savedMessage = ui.message,
+                savedMessage = if (ui.feedbackKind == ContactKind.CARD) ui.message else null,
                 contentDescription = "Tarjeta o cuenta",
             )
         }
@@ -125,7 +132,11 @@ fun ContactScreen(vm: ContactViewModel = hiltViewModel()) {
                 label = stringResource(R.string.contact_phone_label),
                 options = ui.phones,
                 draft = phoneDraft,
-                onDraftChange = { phoneDraft = it; copied = false },
+                onDraftChange = {
+                    phoneDraft = it
+                    copied = false
+                    vm.clearFeedback()
+                },
                 addLabel = addPhoneLabel,
                 saveLabel = savePhoneLabel,
                 editing = ui.editingPhone != null,
@@ -134,10 +145,16 @@ fun ContactScreen(vm: ContactViewModel = hiltViewModel()) {
                     phoneDraft = ""
                 },
                 onEdit = { phoneDraft = vm.beginEditPhone(it); copied = false },
-                onDelete = vm::removePhone,
-                onSelect = vm::selectPhone,
+                onDelete = { value ->
+                    vm.removePhone(value)
+                    copied = false
+                },
+                onSelect = { value ->
+                    vm.selectPhone(value)
+                    copied = false
+                },
                 selected = ui.selectedPhone,
-                savedMessage = ui.message,
+                savedMessage = if (ui.feedbackKind == ContactKind.PHONE) ui.message else null,
                 contentDescription = "Teléfono",
             )
         }
@@ -147,7 +164,11 @@ fun ContactScreen(vm: ContactViewModel = hiltViewModel()) {
                 label = stringResource(R.string.contact_app_label),
                 options = ui.apps,
                 draft = appDraft,
-                onDraftChange = { appDraft = it; copied = false },
+                onDraftChange = {
+                    appDraft = it
+                    copied = false
+                    vm.clearFeedback()
+                },
                 addLabel = addAppLabel,
                 saveLabel = saveAppLabel,
                 editing = ui.editingApp != null,
@@ -156,10 +177,16 @@ fun ContactScreen(vm: ContactViewModel = hiltViewModel()) {
                     appDraft = ""
                 },
                 onEdit = { appDraft = vm.beginEditApp(it); copied = false },
-                onDelete = vm::removeApp,
-                onSelect = vm::selectApp,
+                onDelete = { value ->
+                    vm.removeApp(value)
+                    copied = false
+                },
+                onSelect = { value ->
+                    vm.selectApp(value)
+                    copied = false
+                },
                 selected = ui.selectedApp,
-                savedMessage = ui.message,
+                savedMessage = if (ui.feedbackKind == ContactKind.APP) ui.message else null,
                 contentDescription = "App",
             )
         }
@@ -187,21 +214,12 @@ fun ContactScreen(vm: ContactViewModel = hiltViewModel()) {
                 }
             },
             enabled = ready,
-            modifier = Modifier.semantics { contentDescription = "Copiar datos de contacto" },
+            modifier = Modifier.semantics { contentDescription = copyContactDescription },
         )
         if (copied) {
-            Spacer(Modifier.height(12.dp))
-            Text(
-                copiedMessage,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.primary,
-                textAlign = TextAlign.Center,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .semantics { contentDescription = "Datos copiados" },
-            )
+            Spacer(Modifier.height(8.dp))
+            StatusBanner(error = null, success = copiedMessage)
         }
-
         Spacer(Modifier.height(24.dp))
     }
 }
@@ -315,7 +333,7 @@ private fun PickerBlock(
             }
         }
         Spacer(Modifier.height(8.dp))
-        GlPrimaryButton(
+        GlSecondaryButton(
             text = if (editing) saveLabel else addLabel,
             onClick = onAdd,
             enabled = draft.isNotBlank(),
@@ -323,20 +341,9 @@ private fun PickerBlock(
             // propiedad de semantics.
             modifier = Modifier.semantics { this.contentDescription = "Añadir a $label" },
         )
-        // Solo recién guardado: si hay borrador tecleado, el usuario ya pasó a
-        // otra cosa y el mensaje es viejo. Sin esta compuerta, tras guardar una
-        // tarjeta el "Añadido" saldría también bajo el otro bloque.
-        if (savedMessage != null && draft.isEmpty()) {
+        if (savedMessage != null) {
             Spacer(Modifier.height(8.dp))
-            Text(
-                savedMessage,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.primary,
-                textAlign = TextAlign.Center,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .semantics { this.contentDescription = "Valor guardado" },
-            )
+            StatusBanner(error = null, success = savedMessage)
         }
     }
 

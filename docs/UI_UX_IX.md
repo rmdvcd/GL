@@ -26,6 +26,15 @@ Ticker local de lista, `MetaRow` merge, banners `polite`, `heightIn`, fade en `A
 - Instrumentados anclados a copy de **producto**, no de lock: `Solicitud cifrada`, `Generar licencia`, `Registrar`, `Generador`, `Registro`, `Sin licencias`.
 - `docs/TESTING.md` y `AGENTS.md` documentan los gotchas de instrumentación.
 
+## Fase 8: UI / UX / IX Pro Max
+
+- Header + texto de contexto y secciones por paso para bajar la carga cognitiva.
+- Navegación inferior con icono y etiqueta permanente; destinos raíz restauran estado y no se apilan.
+- Una sola acción primaria por bloque; tarjetas, banners y filas responden a fuente grande y TalkBack.
+- Registro con fechas `dd/MM/yyyy · HH:mm` en `America/Havana`, estado visible y un único ticker pausado fuera de pantalla o sin elementos.
+- Detalle con loading/empty state y bloques de identidad/licencia; claves públicas en campos seleccionables.
+- La maqueta `preview/gl-ui.html` sirve para revisar el sistema visual sin necesidad de un emulador.
+
 ## Pendiente (no hacer)
 
 Filtro de registro, háptica, i18n más allá de `strings.xml` es-ES implícito.

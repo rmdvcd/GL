@@ -58,6 +58,12 @@ class RegistryViewModelTest {
     }
 
     @Test
+    fun dateLabelUsesHavanaRatherThanDeviceZone() {
+        assertThat(RegistryCountdown.dateLabel("2026-01-01T01:30:00Z"))
+            .isEqualTo("31/12/2025 · 20:30")
+    }
+
+    @Test
     fun importExportFlow() = runTest {
         val lic = MemLic()
         lic.upsert(sample("id-1"))

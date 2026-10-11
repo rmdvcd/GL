@@ -26,6 +26,8 @@ data class ContactUi(
     val selectedPhone: String? = null,
     val selectedApp: String? = null,
     val message: String? = null,
+    /** Bloque junto al que se muestra la última confirmación de guardado. */
+    val feedbackKind: String? = null,
     /** Valor en edición, si lo hay. Mientras existe, Añadir actúa como Guardar. */
     val editingCard: String? = null,
     val editingPhone: String? = null,
@@ -68,7 +70,14 @@ class ContactViewModel @Inject constructor(
             // valor es borrar la fila vieja y crear la nueva.
             _ui.value.editingCard?.let { repo.remove(ContactKind.CARD, it) }
             repo.add(newItem(ContactKind.CARD, value))
-            _ui.update { it.copy(selectedCard = value, editingCard = null, message = ADDED_MESSAGE) }
+            _ui.update {
+                it.copy(
+                    selectedCard = value,
+                    editingCard = null,
+                    message = ADDED_MESSAGE,
+                    feedbackKind = ContactKind.CARD,
+                )
+            }
         }
     }
 
@@ -78,7 +87,14 @@ class ContactViewModel @Inject constructor(
         viewModelScope.launch {
             _ui.value.editingPhone?.let { repo.remove(ContactKind.PHONE, it) }
             repo.add(newItem(ContactKind.PHONE, value))
-            _ui.update { it.copy(selectedPhone = value, editingPhone = null, message = ADDED_MESSAGE) }
+            _ui.update {
+                it.copy(
+                    selectedPhone = value,
+                    editingPhone = null,
+                    message = ADDED_MESSAGE,
+                    feedbackKind = ContactKind.PHONE,
+                )
+            }
         }
     }
 
@@ -89,7 +105,14 @@ class ContactViewModel @Inject constructor(
         viewModelScope.launch {
             _ui.value.editingApp?.let { repo.remove(ContactKind.APP, it) }
             repo.add(newItem(ContactKind.APP, value))
-            _ui.update { it.copy(selectedApp = value, editingApp = null, message = ADDED_MESSAGE) }
+            _ui.update {
+                it.copy(
+                    selectedApp = value,
+                    editingApp = null,
+                    message = ADDED_MESSAGE,
+                    feedbackKind = ContactKind.APP,
+                )
+            }
         }
     }
 
@@ -99,17 +122,17 @@ class ContactViewModel @Inject constructor(
      * call-site que el campo se rellena con ese valor.
      */
     fun beginEditCard(value: String): String {
-        _ui.update { it.copy(editingCard = value, message = null) }
+        _ui.update { it.copy(editingCard = value, message = null, feedbackKind = null) }
         return value
     }
 
     fun beginEditPhone(value: String): String {
-        _ui.update { it.copy(editingPhone = value, message = null) }
+        _ui.update { it.copy(editingPhone = value, message = null, feedbackKind = null) }
         return value
     }
 
     fun beginEditApp(value: String): String {
-        _ui.update { it.copy(editingApp = value, message = null) }
+        _ui.update { it.copy(editingApp = value, message = null, feedbackKind = null) }
         return value
     }
 
@@ -125,6 +148,7 @@ class ContactViewModel @Inject constructor(
                     selectedCard = if (it.selectedCard == value) null else it.selectedCard,
                     editingCard = if (it.editingCard == value) null else it.editingCard,
                     message = null,
+                    feedbackKind = null,
                 )
             }
         }
@@ -138,6 +162,7 @@ class ContactViewModel @Inject constructor(
                     selectedPhone = if (it.selectedPhone == value) null else it.selectedPhone,
                     editingPhone = if (it.editingPhone == value) null else it.editingPhone,
                     message = null,
+                    feedbackKind = null,
                 )
             }
         }
@@ -151,21 +176,28 @@ class ContactViewModel @Inject constructor(
                     selectedApp = if (it.selectedApp == value) null else it.selectedApp,
                     editingApp = if (it.editingApp == value) null else it.editingApp,
                     message = null,
+                    feedbackKind = null,
                 )
             }
         }
     }
 
+    fun clearFeedback() {
+        if (_ui.value.message != null || _ui.value.feedbackKind != null) {
+            _ui.update { it.copy(message = null, feedbackKind = null) }
+        }
+    }
+
     fun selectCard(value: String) {
-        _ui.update { it.copy(selectedCard = value, message = null) }
+        _ui.update { it.copy(selectedCard = value, message = null, feedbackKind = null) }
     }
 
     fun selectPhone(value: String) {
-        _ui.update { it.copy(selectedPhone = value, message = null) }
+        _ui.update { it.copy(selectedPhone = value, message = null, feedbackKind = null) }
     }
 
     fun selectApp(value: String) {
-        _ui.update { it.copy(selectedApp = value, message = null) }
+        _ui.update { it.copy(selectedApp = value, message = null, feedbackKind = null) }
     }
 
     /**

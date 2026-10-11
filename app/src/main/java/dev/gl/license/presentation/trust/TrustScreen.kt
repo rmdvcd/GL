@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,10 +13,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -29,13 +28,15 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import dev.gl.license.R
 import dev.gl.license.domain.model.CONTRACT_VERSION
 import dev.gl.license.presentation.components.GlCard
 import dev.gl.license.presentation.components.GlPrimaryButton
 import dev.gl.license.presentation.components.GlSecondaryButton
+import dev.gl.license.presentation.components.ScreenHeader
+import dev.gl.license.presentation.components.StatusBanner
+import dev.gl.license.presentation.theme.GlDimens
 import dev.gl.license.security.KeystoreManager
 import dev.gl.license.security.PublicKeyBundle
 
@@ -52,6 +53,8 @@ import dev.gl.license.security.PublicKeyBundle
 fun TrustScreen() {
     val context = LocalContext.current
     var copied by remember { mutableStateOf(false) }
+    val copiedMessage = stringResource(R.string.trust_copied)
+    val copyPublicKeysDescription = stringResource(R.string.cd_copy_public_keys)
 
     // Las claves son EC P-256; .encoded es el SPKI DER, que es lo que
     // consume el cliente. getOrCreate* devuelve las existentes si ya existen.
@@ -77,24 +80,17 @@ fun TrustScreen() {
         Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp)
+            .padding(GlDimens.screen)
             .semantics { contentDescription = "Claves públicas de GL" },
-        horizontalAlignment = Alignment.CenterHorizontally
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Spacer(Modifier.height(16.dp))
-        Text(
-            stringResource(R.string.trust_title),
-            style = MaterialTheme.typography.titleLarge,
-            modifier = Modifier.fillMaxWidth(),
-            textAlign = TextAlign.Center
+        ScreenHeader(
+            title = stringResource(R.string.trust_title),
+            supportingText = stringResource(R.string.trust_intro),
         )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            stringResource(R.string.trust_intro),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(GlDimens.gap))
+        StatusBanner(error = null, success = if (copied) copiedMessage else null)
+        if (copied) Spacer(Modifier.height(GlDimens.gap))
 
         GlCard {
             KeyBlock(
@@ -121,21 +117,8 @@ fun TrustScreen() {
                 copyToClipboard(context, payload)
                 copied = true
             },
-            modifier = Modifier.semantics { contentDescription = "Copiar claves públicas" },
+            modifier = Modifier.semantics { contentDescription = copyPublicKeysDescription },
         )
-        if (copied) {
-            Spacer(Modifier.height(12.dp))
-            Text(
-                stringResource(R.string.trust_copied),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .semantics { contentDescription = "Claves copiadas" },
-                textAlign = TextAlign.Center
-            )
-        }
-
         Spacer(Modifier.height(24.dp))
     }
 }
@@ -144,45 +127,64 @@ fun TrustScreen() {
 private fun KeyBlock(title: String, body: String, key: String, fingerprint: String) {
     Column(
         verticalArrangement = Arrangement.spacedBy(6.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+        horizontalAlignment = Alignment.Start,
     ) {
         Text(
-            title,
+            text = title,
             style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.fillMaxWidth(),
-            textAlign = TextAlign.Center
         )
         Text(
-            body,
+            text = body,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.fillMaxWidth(),
         )
         Spacer(Modifier.height(4.dp))
         Text(
-            "SHA-256",
+            text = "SHA-256",
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        // Monoespaciada: la huella se compara a ojo contra LicenseTrust.kt.
-        Text(
-            fingerprint,
-            style = MaterialTheme.typography.bodySmall,
-            fontFamily = FontFamily.Monospace,
-        )
+        // Monoespaciada y seleccionable: permite comparar la huella sin copiarla a mano.
+        Surface(
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            shape = MaterialTheme.shapes.small,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            SelectionContainer {
+                Text(
+                    text = fingerprint,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = FontFamily.Monospace,
+                    modifier = Modifier.padding(10.dp),
+                )
+            }
+        }
         Spacer(Modifier.height(4.dp))
         Text(
-            "Base64 (SPKI)",
+            text = "Base64 (SPKI)",
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Text(
-            key,
-            style = MaterialTheme.typography.bodySmall,
-            fontFamily = FontFamily.Monospace,
-        )
+        Surface(
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            shape = MaterialTheme.shapes.small,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            SelectionContainer {
+                Text(
+                    text = key,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = FontFamily.Monospace,
+                    modifier = Modifier.padding(10.dp),
+                )
+            }
+        }
         Spacer(Modifier.height(8.dp))
         val context = LocalContext.current
         val copyLabel = stringResource(R.string.trust_copy_one)
+        val copyDescription = stringResource(R.string.cd_copy_key, title)
         GlSecondaryButton(
             text = copyLabel,
             onClick = {
@@ -197,7 +199,7 @@ private fun KeyBlock(title: String, body: String, key: String, fingerprint: Stri
                     ),
                 )
             },
-            modifier = Modifier.semantics { contentDescription = "Copiar $title" },
+            modifier = Modifier.semantics { contentDescription = copyDescription },
         )
     }
 }

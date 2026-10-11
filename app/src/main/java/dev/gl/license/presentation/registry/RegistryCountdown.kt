@@ -5,8 +5,20 @@ import dev.gl.license.domain.model.Licencia
 import dev.gl.license.domain.model.TipoLicencia
 import java.time.Duration
 import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 object RegistryCountdown {
+    private val displayZone = ZoneId.of("America/Havana")
+    private val displayFormat = DateTimeFormatter.ofPattern("dd/MM/yyyy · HH:mm").withZone(displayZone)
+
+    /** Fecha legible para la lista y el detalle; el dato original sigue en Room en ISO-8601. */
+    fun dateLabel(iso: String): String = try {
+        displayFormat.format(Instant.parse(iso))
+    } catch (_: Exception) {
+        iso
+    }
+
     fun label(item: Licencia, nowMillis: Long): String {
         if (item.type == TipoLicencia.PERPETUA || item.status == EstadoLicencia.PERPETUA) {
             return "Perpetua"
