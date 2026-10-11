@@ -6,6 +6,28 @@
     <string name="tab_trust">Claves</string>
     <string name="tab_contact">Contacto</string>
 
+    <!-- Etiquetas reutilizadas: mantienen el copy y TalkBack consistentes. -->
+    <string name="field_license_id">ID</string>
+    <string name="field_name">Nombre</string>
+    <string name="field_national_id">CI</string>
+    <string name="field_channel">Vía</string>
+    <string name="field_phone">Teléfono</string>
+    <string name="field_device">Dispositivo</string>
+    <string name="field_app">App</string>
+    <string name="field_type">Tipo</string>
+    <string name="field_status">Estado</string>
+    <string name="field_requested_at">Solicitada</string>
+    <string name="field_issued_at">Emitida</string>
+    <string name="field_expires_at">Vence</string>
+    <string name="field_nonce">Nonce</string>
+    <string name="field_secondary_apps">Apps secundarias</string>
+    <string name="cd_error">Error: %1$s</string>
+    <string name="cd_success">Éxito: %1$s</string>
+    <string name="cd_countdown">Tiempo restante %1$s</string>
+    <string name="cd_copy_contact">Copiar datos de contacto</string>
+    <string name="cd_copy_public_keys">Copiar claves públicas</string>
+    <string name="cd_copy_key">Copiar %1$s</string>
+
     <string name="contact_title">Contacto</string>
     <string name="contact_intro">Guarda una tarjeta o cuenta, un teléfono y tus apps, elige uno de cada y cópialos juntos para pegarlos donde los pidas.</string>
     <string name="contact_card_label">Tarjeta o cuenta bancaria</string>
@@ -41,7 +63,13 @@
     <string name="generated_message">Mensaje generado</string>
     <string name="copiar_mensaje">Copiar mensaje</string>
     <string name="encrypted_request">Solicitud cifrada</string>
-    <string name="generator_help">Pega la solicitud cifrada o déjala en el portapapeles con GL en primer plano.</string>
+    <string name="generator_help">Pega una solicitud cifrada o déjala en el portapapeles con GL en primer plano.</string>
+    <string name="generator_request_step">1. Solicitud</string>
+    <string name="generator_payment_step">2. Confirmar pago</string>
+    <string name="generator_payment_supporting">Confirma el cobro antes de crear la licencia.</string>
+    <string name="generator_response_step">3. Respuesta para el cliente</string>
+    <string name="cd_clipboard_detected">Solicitud detectada del portapapeles</string>
+    <string name="cd_encrypted_request">Solicitud cifrada</string>
     <string name="generator_empty_title">Sin solicitud</string>
     <string name="generator_empty_body">Copia el envelope en el cliente y vuelve aquí, o pégalo en el campo.</string>
     <string name="clipboard_detected">Solicitud detectada del portapapeles</string>
@@ -51,10 +79,22 @@
     <string name="license_price_charged">Precio cobrado</string>
     <string name="import_registry">Importar</string>
     <string name="export_registry">Exportar</string>
+    <string name="registry_count_empty">Aún no hay licencias en este teléfono</string>
+    <string name="registry_count_one">1 licencia en este teléfono</string>
+    <string name="registry_count_many">%1$d licencias en este teléfono</string>
+    <string name="registry_working">Procesando el registro…</string>
+    <string name="registry_open_license">Abrir licencia de %1$s %2$s, %3$s</string>
+    <string name="registry_issued">Emitida: %1$s</string>
+    <string name="registry_secondary_count">%1$d secundarias</string>
     <string name="registry_empty_title">Sin licencias</string>
     <string name="registry_empty_body">Genera una en Generador o importa un .glreg de este teléfono.</string>
     <string name="perpetual">Perpetua</string>
     <string name="detail_title">Detalle</string>
-    <string name="close">Cerrar</string>
+    <string name="detail_loading">Cargando licencia…</string>
+    <string name="detail_missing_title">Licencia no disponible</string>
+    <string name="detail_missing_body">Puede haberse eliminado o no estar disponible en este teléfono.</string>
+    <string name="detail_identity_section">Identificación</string>
+    <string name="detail_license_section">Datos de la licencia</string>
+    <string name="close">Volver</string>
     <string name="cd_detail">Detalle de licencia</string>
 </resources>

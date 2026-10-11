@@ -13,8 +13,8 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContactPage
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -24,7 +24,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.fragment.app.FragmentActivity
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -56,6 +59,19 @@ class MainActivity : FragmentActivity() {
                 val route = back?.destination?.route
                 val showBar = route == Route.Generator || route == Route.Contact ||
                     route == Route.Registry || route == Route.Trust
+                val generatorLabel = stringResource(R.string.tab_generator)
+                val contactLabel = stringResource(R.string.tab_contact)
+                val registryLabel = stringResource(R.string.tab_registry)
+                val trustLabel = stringResource(R.string.tab_trust)
+                val navigateToRoot: (String) -> Unit = { destination ->
+                    nav.navigate(destination) {
+                        launchSingleTop = true
+                        restoreState = true
+                        popUpTo(nav.graph.findStartDestination().id) {
+                            saveState = true
+                        }
+                    }
+                }
                 Scaffold(
                     contentWindowInsets = WindowInsets.safeDrawing,
                     bottomBar = {
@@ -63,50 +79,35 @@ class MainActivity : FragmentActivity() {
                             NavigationBar(Modifier.windowInsetsPadding(WindowInsets.navigationBars)) {
                                 NavigationBarItem(
                                     selected = route == Route.Generator,
-                                    onClick = {
-                                        nav.navigate(Route.Generator) { launchSingleTop = true }
-                                    },
-                                    icon = {
-                                        Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.tab_generator))
-                                    },
-                                    label = {},
-                                    alwaysShowLabel = false,
+                                    onClick = { navigateToRoot(Route.Generator) },
+                                    icon = { Icon(Icons.Default.Description, contentDescription = null) },
+                                    label = { Text(generatorLabel) },
+                                    alwaysShowLabel = true,
+                                    modifier = Modifier.semantics { contentDescription = generatorLabel },
                                 )
                                 NavigationBarItem(
                                     selected = route == Route.Contact,
-                                    onClick = {
-                                        nav.navigate(Route.Contact) { launchSingleTop = true }
-                                    },
-                                    icon = {
-                                        Icon(
-                                            Icons.Default.ContactPage,
-                                            contentDescription = stringResource(R.string.tab_contact),
-                                        )
-                                    },
-                                    label = {},
-                                    alwaysShowLabel = false,
+                                    onClick = { navigateToRoot(Route.Contact) },
+                                    icon = { Icon(Icons.Default.ContactPage, contentDescription = null) },
+                                    label = { Text(contactLabel) },
+                                    alwaysShowLabel = true,
+                                    modifier = Modifier.semantics { contentDescription = contactLabel },
                                 )
                                 NavigationBarItem(
                                     selected = route == Route.Registry,
-                                    onClick = {
-                                        nav.navigate(Route.Registry) { launchSingleTop = true }
-                                    },
-                                    icon = {
-                                        Icon(Icons.Default.List, contentDescription = stringResource(R.string.tab_registry))
-                                    },
-                                    label = {},
-                                    alwaysShowLabel = false,
+                                    onClick = { navigateToRoot(Route.Registry) },
+                                    icon = { Icon(Icons.Default.List, contentDescription = null) },
+                                    label = { Text(registryLabel) },
+                                    alwaysShowLabel = true,
+                                    modifier = Modifier.semantics { contentDescription = registryLabel },
                                 )
                                 NavigationBarItem(
                                     selected = route == Route.Trust,
-                                    onClick = {
-                                        nav.navigate(Route.Trust) { launchSingleTop = true }
-                                    },
-                                    icon = {
-                                        Icon(Icons.Default.VpnKey, contentDescription = stringResource(R.string.tab_trust))
-                                    },
-                                    label = {},
-                                    alwaysShowLabel = false,
+                                    onClick = { navigateToRoot(Route.Trust) },
+                                    icon = { Icon(Icons.Default.VpnKey, contentDescription = null) },
+                                    label = { Text(trustLabel) },
+                                    alwaysShowLabel = true,
+                                    modifier = Modifier.semantics { contentDescription = trustLabel },
                                 )
                             }
                         }

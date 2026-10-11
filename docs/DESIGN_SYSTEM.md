@@ -36,6 +36,15 @@ Sin transiciones de navegación aún (fase 6).
 `GlPrimaryButton` / `GlSecondaryButton` (min 52, loading).  
 `StatusBanner`, `GlCard` → `shapes.medium`, `EmptyState`, `CountdownText`, `MetaRow`, `ScreenTitle` (heading).
 
+### Aplicación UI / UX / IX Pro Max
+
+- **Jerarquía:** `ScreenHeader` aporta título y contexto; `SectionLabel` divide flujos largos en pasos claros. El generador siempre comunica «Solicitud → Confirmar pago → Respuesta».
+- **Acciones:** una única acción primaria por bloque; las acciones auxiliares (pegar, añadir, registrar, copiar) usan el estilo secundario. No se oculta el estado deshabilitado que explica el siguiente paso.
+- **Lectura y accesibilidad:** `MetaRow` reserva espacio al valor, permite saltos de línea con fuente grande y fusiona etiqueta + valor para TalkBack. Las alertas de éxito y error son regiones vivas educadas.
+- **Navegación:** las cuatro pestañas mantienen icono **y** etiqueta. El cambio de pestaña restaura el estado y evita apilar destinos raíz.
+- **Datos sensibles y largos:** huellas y claves usan monoespaciada, superficie secundaria y selección nativa; el contenido sigue protegido por `FLAG_SECURE`.
+- **Rendimiento:** Registro usa un único ticker que solo corre cuando la pestaña está visible y hay licencias.
+
 ## Copy
 
 Claves en `res/values/strings.xml`. Tests instrumentados dependen de `contentDescription = "Solicitud cifrada"` en el campo del Generador y de los textos `Generar licencia`, `Registrar`, `Generador`, `Registro`, `Sin licencias`.

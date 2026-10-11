@@ -3,6 +3,7 @@ package dev.gl.license.presentation.generator
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.gl.license.core.AppError
 import dev.gl.license.core.Outcome
 import dev.gl.license.domain.model.Licencia
 import dev.gl.license.domain.model.LicenseMessage
@@ -96,20 +97,32 @@ class GeneratorViewModel @Inject constructor(
                         _ui.update {
                             it.copy(
                                 solicitud = null,
-                                error = dev.gl.license.core.AppError.SpviDesactualizada.userMessage,
+                                error = AppError.SpviDesactualizada.userMessage,
                             )
                         }
                     } else {
                         _ui.update { it.copy(solicitud = solicitud, error = null) }
                     }
                 }
-                is Outcome.Err -> _ui.update { it.copy(solicitud = null, error = r.error.userMessage) }
+                is Outcome.Err -> _ui.update {
+                    it.copy(
+                        solicitud = null,
+                        error = if (mencionaSpvi(text)) {
+                            AppError.SpviNoEs023.userMessage
+                        } else {
+                            r.error.userMessage
+                        },
+                    )
+                }
             }
         }
     }
 
     private fun esSpviV1(solicitud: SolicitudLicencia): Boolean =
         solicitud.appName == "SPVI" || solicitud.deviceId.startsWith("SPVI:")
+
+    /** Texto que se presenta como SPVI pero no contiene un código R1 extraíble. */
+    private fun mencionaSpvi(raw: String): Boolean = raw.contains("SPVI", ignoreCase = true)
 
     fun onForegroundClipboard(text: String?, windowHasFocus: Boolean, resumed: Boolean) {
         if (!windowHasFocus || !resumed) return

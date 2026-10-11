@@ -131,6 +131,13 @@ class FieldValidatorTest {
     }
 
     @Test
+    fun rejectsLicenseV2WithInvalidRequestedAt() {
+        val result = FieldValidator.validateLicense(validLicenseV2().copy(requestedAtIso = "ayer"))
+
+        assertThat(result).isInstanceOf(Outcome.Err::class.java)
+    }
+
+    @Test
     fun rejectsLicenseV2WithSecundariasAboveMaximum() {
         val result = FieldValidator.validateLicense(validLicenseV2().copy(secundarias = 11))
 
