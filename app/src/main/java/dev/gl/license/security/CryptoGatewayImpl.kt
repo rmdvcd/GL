@@ -10,7 +10,6 @@ import dev.gl.license.domain.model.SolicitudSpviV2
 import dev.gl.license.domain.repository.SeguridadRepository
 import dev.gl.license.domain.repository.SpviPuerta
 import dev.gl.license.domain.usecase.FieldValidator
-import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import javax.crypto.SecretKey
 import javax.inject.Inject
@@ -54,19 +53,20 @@ class CryptoGatewayImpl @Inject constructor(
         }
     }
 
-    override fun cifrarLicencia(license: Licencia, devicePubPem: String?): Outcome<String> {
+    override fun cifrarLicencia(license: Licencia, devicePubPem: String): Outcome<String> {
         return try {
             when (val v = EnvelopeValidator.license(license)) {
                 is Outcome.Err -> return v
                 is Outcome.Ok -> Unit
             }
+            if (devicePubPem.isBlank()) return Outcome.Err(AppError.DevicePubRequired)
+            val peer = try {
+                CryptoEngine.parseEcPublic(devicePubPem)
+            } catch (_: Exception) {
+                return Outcome.Err(AppError.InvalidPayload)
+            }
             val payload = json.encodeToString(Licencia.serializer(), license).toByteArray()
             val signing = KeystoreManager.signingPair()
-            val peer = if (!devicePubPem.isNullOrBlank()) {
-                CryptoEngine.parseEcPublic(devicePubPem)
-            } else {
-                KeystoreManager.ecdhPair().public
-            }
             val env = HybridBox.seal(
                 plaintext = payload,
                 peerPublic = peer,
@@ -120,11 +120,12 @@ class CryptoGatewayImpl @Inject constructor(
     }
 
     override fun exportar(licencias: List<Licencia>): Outcome<ByteArray> {
+        if (licencias.size > RegistryArchive.MAX_ENTRIES) return Outcome.Err(AppError.ExportFailure)
         return try {
             licencias.forEach {
                 if (EnvelopeValidator.license(it) is Outcome.Err) return Outcome.Err(AppError.ExportFailure)
             }
-            val payload = json.encodeToString(ListSerializer(Licencia.serializer()), licencias).toByteArray()
+            val payload = RegistryArchive.encode(licencias, json)
             Outcome.Ok(RegistryPack.pack(payload, master(), KeystoreManager.signingPair().private))
         } catch (_: Exception) {
             Outcome.Err(AppError.ExportFailure)
@@ -132,16 +133,21 @@ class CryptoGatewayImpl @Inject constructor(
     }
 
     override fun importar(bytes: ByteArray): Outcome<List<Licencia>> {
-        return when (val pt = RegistryPack.unpack(bytes, master(), KeystoreManager.signingPair().public)) {
-            is Outcome.Err -> pt
-            is Outcome.Ok -> try {
-                val list = json.decodeFromString(ListSerializer(Licencia.serializer()), pt.value.decodeToString())
-                if (list.any { !filaValida(it) }) {
+        if (bytes.size > RegistryPack.MAX_PACK_BYTES) return Outcome.Err(AppError.ImportFailure)
+        return try {
+            when (val pt = RegistryPack.unpack(bytes, master(), KeystoreManager.signingPair().public)) {
+                is Outcome.Err -> pt
+                is Outcome.Ok -> try {
+                    val list = RegistryArchive.decode(pt.value, json)
+                    if (list.any { !filaValida(it) }) {
+                        Outcome.Err(AppError.ImportFailure)
+                    } else Outcome.Ok(list)
+                } catch (_: Exception) {
                     Outcome.Err(AppError.ImportFailure)
-                } else Outcome.Ok(list)
-            } catch (_: Exception) {
-                Outcome.Err(AppError.ImportFailure)
+                }
             }
+        } catch (_: Exception) {
+            Outcome.Err(AppError.ImportFailure)
         }
     }
 

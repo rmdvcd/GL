@@ -70,6 +70,47 @@ class FieldValidatorTest {
     }
 
     @Test
+    fun rejectsRequestJustBeyond72HourBoundaryInsteadOfRoundingToHours() {
+        val r = valid().copy(requestedAtIso = "2026-01-01T00:00:00Z")
+        val now = java.time.Instant.parse("2026-01-04T00:00:01Z")
+
+        val res = FieldValidator.validateRequest(r, now = now)
+
+        assertThat((res as Outcome.Err).error).isEqualTo(AppError.RequestExpired)
+    }
+
+    @Test
+    fun acceptsExactAgeAndFutureSkewBoundaries() {
+        val base = java.time.Instant.parse("2026-01-01T00:00:00Z")
+        val exactAge = valid().copy(requestedAtIso = base.toString())
+        val exactFuture = valid().copy(requestedAtIso = base.plusSeconds(2 * 60 * 60L).toString())
+
+        assertThat(FieldValidator.validateRequest(exactAge, now = base.plusSeconds(72 * 60 * 60L)))
+            .isInstanceOf(Outcome.Ok::class.java)
+        assertThat(FieldValidator.validateRequest(exactFuture, now = base))
+            .isInstanceOf(Outcome.Ok::class.java)
+    }
+
+    @Test
+    fun rejectsUnrepresentableClockWindowFailClosed() {
+        val extreme = java.time.Instant.MAX
+        val request = valid().copy(requestedAtIso = extreme.toString())
+
+        val result = FieldValidator.validateRequest(request, now = extreme)
+
+        assertThat((result as Outcome.Err).error).isEqualTo(AppError.RequestExpired)
+    }
+
+    @Test
+    fun rejectsRequestMoreThanTwoHoursInTheFuture() {
+        val r = valid().copy(requestedAtIso = "2026-01-01T02:00:01Z")
+
+        val res = FieldValidator.validateRequest(r, now = java.time.Instant.parse("2026-01-01T00:00:00Z"))
+
+        assertThat((res as Outcome.Err).error).isEqualTo(AppError.RequestExpired)
+    }
+
+    @Test
     fun rejectsBadPhone() {
         val r = valid().copy(phone = "123")
         assertThat(FieldValidator.validateRequest(r)).isInstanceOf(Outcome.Err::class.java)

@@ -17,6 +17,10 @@ import kotlinx.serialization.json.Json
  */
 object ClientRequestHelper {
     fun buildEnvelope(req: LicenseRequest, peerPublic: java.security.PublicKey, json: Json): String {
+        val devicePublicKey = requireNotNull(req.devicePublicKeyPem?.takeIf { it.isNotBlank() }) {
+            "devicePub-required"
+        }
+        CryptoEngine.parseEcPublic(devicePublicKey)
         val eph = CryptoEngine.generateEphemeralP256()
         val shared = CryptoEngine.ecdh(eph.private, peerPublic)
         val payload = json.encodeToString(LicenseRequest.serializer(), req).toByteArray()
@@ -25,7 +29,8 @@ object ClientRequestHelper {
         val aad = CryptoEngine.canonical(
             listOf(CONTRACT_VERSION.toString(), CryptoEngine.ALG_HYBRID, CryptoEngine.b64(eph.public.encoded), "gl-sign-v1")
         )
-        val (iv, ct, tag) = CryptoEngine.aesGcmEncrypt(aes, payload, aad)
+        // The IV is also the HKDF salt and must be identical on both sides.
+        val (iv, ct, tag) = CryptoEngine.aesGcmEncrypt(aes, payload, aad, iv0)
         val toSign = eph.public.encoded + iv + ct + tag
         val sig = CryptoEngine.sign(eph.private, toSign)
         val env = Envelope(
@@ -59,8 +64,8 @@ object ClientRequestHelper {
         telefono: String,
         via: dev.gl.license.domain.model.ViaSolicitud,
         tipo: dev.gl.license.domain.model.TipoLicencia,
+        devicePublicKeyPem: String,
         secundarias: Int? = null,
-        devicePublicKeyPem: String? = null,
     ): LicenseRequest {
         val nowIso = java.time.Instant.now().toString()
         val nonce = CryptoEngine.b64(CryptoEngine.randomBytes(16))

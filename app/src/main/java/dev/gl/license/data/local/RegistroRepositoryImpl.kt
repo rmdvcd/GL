@@ -27,9 +27,15 @@ class RegistroRepositoryImpl @Inject constructor(
 
     override suspend fun mergePorId(incoming: List<RegistroLicencia>): Outcome<Int> = try {
         val existing = dao.all().associateBy { it.id }
-        val toWrite = incoming.map { it.licencia }.filter { lic ->
+        val toWrite = incoming.map { it.licencia }.mapNotNull { lic ->
             val old = existing[lic.id]
-            old == null || lic.issuedAtIso >= old.issuedAtIso
+            when {
+                old == null -> lic
+                lic.issuedAtIso < old.issuedAtIso -> null
+                lic.precioCobrado == null && old.precioCobrado != null ->
+                    lic.copy(precioCobrado = old.precioCobrado)
+                else -> lic
+            }
         }
         dao.upsertAll(toWrite.map { it.toEntity() })
         Outcome.Ok(toWrite.size)

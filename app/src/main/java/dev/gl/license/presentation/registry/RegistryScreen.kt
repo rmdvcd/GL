@@ -45,6 +45,9 @@ import dev.gl.license.presentation.components.GlSecondaryButton
 import dev.gl.license.presentation.components.ScreenHeader
 import dev.gl.license.presentation.components.StatusBanner
 import dev.gl.license.presentation.theme.GlDimens
+import dev.gl.license.security.RegistryPack
+import java.io.ByteArrayOutputStream
+import java.io.InputStream
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -75,9 +78,15 @@ fun RegistryScreen(
         uri ?: return@rememberLauncherForActivityResult
         scope.launch {
             val bytes = withContext(Dispatchers.IO) {
-                ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                try {
+                    ctx.contentResolver.openInputStream(uri)?.use {
+                        it.readBounded(RegistryPack.MAX_PACK_BYTES)
+                    }
+                } catch (_: Exception) {
+                    null
+                }
             }
-            if (bytes != null) vm.importBytes(bytes)
+            if (bytes != null) vm.importBytes(bytes) else vm.importRejected()
         }
     }
     val create = rememberLauncherForActivityResult(
@@ -165,6 +174,28 @@ fun RegistryScreen(
             }
         }
     }
+}
+
+private fun InputStream.readBounded(maxBytes: Int): ByteArray {
+    val output = ByteArrayOutputStream(minOf(maxBytes, 8 * 1024))
+    val buffer = ByteArray(8 * 1024)
+    var total = 0
+    while (true) {
+        val count = read(buffer)
+        if (count < 0) break
+        if (count == 0) {
+            val single = read()
+            if (single < 0) break
+            if (total == maxBytes) throw IllegalArgumentException("file-too-large")
+            output.write(single)
+            total++
+            continue
+        }
+        if (count > maxBytes - total) throw IllegalArgumentException("file-too-large")
+        output.write(buffer, 0, count)
+        total += count
+    }
+    return output.toByteArray()
 }
 
 @Composable

@@ -34,11 +34,18 @@ object CryptoEngine {
     const val REG_MAGIC = "GLRG"
     const val AAD_DB = "gl-db-v1"
     const val AAD_REG = "glreg-v1"
+    const val AAD_REG_V2 = "glreg-v2"
     const val INFO_REQ = "gl-req-v1"
     const val INFO_LIC = "gl-lic-v1"
     const val PBKDF2_ITERS = 310_000
 
     private val rnd = SecureRandom()
+    private val p256Prime = java.math.BigInteger("ffffffff00000001000000000000000000000000ffffffffffffffffffffffff", 16)
+    private val p256A = java.math.BigInteger("ffffffff00000001000000000000000000000000fffffffffffffffffffffffc", 16)
+    private val p256B = java.math.BigInteger("5ac635d8aa3a93e7b3ebbd55769886bc651d06b0cc53b0f63bce3c3e27d2604b", 16)
+    private val p256Gx = java.math.BigInteger("6b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296", 16)
+    private val p256Gy = java.math.BigInteger("4fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5", 16)
+    private val p256Order = java.math.BigInteger("ffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551", 16)
 
     fun randomBytes(n: Int): ByteArray = ByteArray(n).also { rnd.nextBytes(it) }
 
@@ -169,7 +176,23 @@ object CryptoEngine {
             .replace("-----END PUBLIC KEY-----", "")
             .replace("\\s".toRegex(), "")
         val der = b64d(cleaned)
-        return KeyFactory.getInstance("EC").generatePublic(X509EncodedKeySpec(der))
+        val key = KeyFactory.getInstance("EC").generatePublic(X509EncodedKeySpec(der))
+        require(isP256(key)) { "ec-p256-required" }
+        return key
+    }
+
+    private fun isP256(publicKey: PublicKey): Boolean {
+        val ec = publicKey as? java.security.interfaces.ECPublicKey ?: return false
+        val params = ec.params ?: return false
+        val field = params.curve.field as? java.security.spec.ECFieldFp ?: return false
+        val generator = params.generator
+        return field.p == p256Prime &&
+            params.curve.a == p256A &&
+            params.curve.b == p256B &&
+            generator.affineX == p256Gx &&
+            generator.affineY == p256Gy &&
+            params.order == p256Order &&
+            params.cofactor == 1
     }
 
     fun pbkdf2HmacSha256(password: CharArray, salt: ByteArray, iterations: Int = PBKDF2_ITERS): ByteArray {

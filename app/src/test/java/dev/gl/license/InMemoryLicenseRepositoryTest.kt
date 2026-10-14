@@ -7,9 +7,11 @@ import com.google.common.truth.Truth.assertThat
 import dev.gl.license.core.Outcome
 import dev.gl.license.data.local.GlDatabase
 import dev.gl.license.data.local.LicenseRepositoryImpl
+import dev.gl.license.data.local.RegistroRepositoryImpl
 import dev.gl.license.domain.model.CONTRACT_VERSION
 import dev.gl.license.domain.model.EstadoLicencia
 import dev.gl.license.domain.model.Licencia
+import dev.gl.license.domain.model.RegistroLicencia
 import dev.gl.license.domain.model.TipoLicencia
 import dev.gl.license.domain.model.ViaSolicitud
 import kotlinx.coroutines.test.runTest
@@ -88,5 +90,32 @@ class InMemoryLicenseRepositoryTest {
         val guardada = repo.getById("s")
         assertThat(guardada?.secundarias).isEqualTo(2)
         assertThat(guardada?.precioCobrado).isEqualTo(8_000)
+    }
+
+    @Test
+    fun transactionLookupIsCaseInsensitive() = runTest {
+        repo.upsert(lic("tx", "2026-01-01T00:00:00Z").copy(txNumber = "TX-ABC123"))
+
+        assertThat(repo.isTransactionUsed("tx-abc123")).isTrue()
+        assertThat(repo.isTransactionUsed("TX-other")).isFalse()
+    }
+
+    @Test
+    fun mergesWithMissingLegacyPriceDoNotEraseLocalTrialMetadata() = runTest {
+        val original = lic("trial", "2026-01-01T00:00:00Z").copy(precioCobrado = 0)
+        val legacyImport = original.copy(
+            issuedAtIso = "2026-02-01T00:00:00Z",
+            precioCobrado = null,
+        )
+        repo.upsert(original)
+
+        repo.merge(listOf(legacyImport))
+        assertThat(repo.getById("trial")?.precioCobrado).isEqualTo(0)
+
+        val registryRepo = RegistroRepositoryImpl(db.licenseDao())
+        registryRepo.mergePorId(
+            listOf(RegistroLicencia(legacyImport, "2026-02-01T00:00:00Z")),
+        )
+        assertThat(repo.getById("trial")?.precioCobrado).isEqualTo(0)
     }
 }

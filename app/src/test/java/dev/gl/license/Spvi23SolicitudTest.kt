@@ -42,4 +42,12 @@ class Spvi23SolicitudTest {
         val r = Spvi23.extraerCodigo("Solicitud SPVI\nSPVIR1:AB\nCD-ef_gh.IJ")
         assertThat((r as Outcome.Ok).value).isEqualTo("ABCD-ef_gh")
     }
+
+    @Test
+    fun rechazaTextoDeSolicitudDemasiadoGrandeAntesDeExtraerCodigo() {
+        val oversized = "SPVIR1:" + "A".repeat(Spvi23.MAX_REQUEST_TEXT_CHARS)
+
+        assertThat(Spvi23.contieneCodigo(oversized)).isFalse()
+        assertThat(Spvi23.extraerCodigo(oversized)).isInstanceOf(Outcome.Err::class.java)
+    }
 }

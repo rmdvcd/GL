@@ -1,6 +1,7 @@
 package dev.gl.license
 
 import com.google.common.truth.Truth.assertThat
+import dev.gl.license.BuildConfig
 import dev.gl.license.domain.model.LicenseCodeGenerator
 import dev.gl.license.domain.model.MasterKey
 import org.junit.Test
@@ -44,18 +45,22 @@ class LicenseCodeTest {
     }
 
     @Test
-    fun masterKeyHas16AlphanumericCharsInGroupsOf4() {
-        assertThat(MasterKey.CODE).isEqualTo("GLMK-PERM-MAXS-9999")
-        assertThat(LicenseCodeGenerator.isValid(MasterKey.CODE)).isTrue()
+    fun masterKeyBuildConfigIsEmptyOutsideDebug() {
+        val expectedCode = if (BuildConfig.DEBUG) "GLMK-PERM-MAXS-9999" else ""
+        assertThat(MasterKey.CODE).isEqualTo(expectedCode)
+        assertThat(LicenseCodeGenerator.isValid(MasterKey.CODE)).isEqualTo(BuildConfig.DEBUG)
         assertThat(MasterKey.MAX_SECUNDARIAS).isEqualTo(10)
     }
 
     @Test
-    fun masterKeyIsRecognizedWithOrWithoutDashesAndCaseInsensitive() {
-        assertThat(MasterKey.isMasterKey("GLMK-PERM-MAXS-9999")).isTrue()
-        assertThat(MasterKey.isMasterKey("glmk-perm-maxs-9999")).isTrue()
-        assertThat(MasterKey.isMasterKey("GLMKPERMMAXS9999")).isTrue()
-        assertThat(MasterKey.isMasterKey("  GLMK-perm-maxs-9999  ")).isTrue()
-        assertThat(MasterKey.isMasterKey("ABCD-EFGH-1234-5678")).isFalse()
+    fun masterKeyIsRecognizedOnlyWhenDebugIsEnabledAndCodeExists() {
+        val expected = BuildConfig.DEBUG
+        assertThat(MasterKey.isMasterKey("GLMK-PERM-MAXS-9999", isDebug = true)).isEqualTo(expected)
+        assertThat(MasterKey.isMasterKey("glmk-perm-maxs-9999", isDebug = true)).isEqualTo(expected)
+        assertThat(MasterKey.isMasterKey("GLMKPERMMAXS9999", isDebug = true)).isEqualTo(expected)
+        assertThat(MasterKey.isMasterKey("  GLMK-perm-maxs-9999  ", isDebug = true)).isEqualTo(expected)
+        assertThat(MasterKey.isMasterKey("ABCD-EFGH-1234-5678", isDebug = true)).isFalse()
+        assertThat(MasterKey.isMasterKey("GLMK-PERM-MAXS-9999", isDebug = false)).isFalse()
+        assertThat(MasterKey.isMasterKey("GLMK-PERM-MAXS-9999")).isFalse()
     }
 }

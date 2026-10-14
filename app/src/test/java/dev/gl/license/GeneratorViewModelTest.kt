@@ -58,7 +58,7 @@ class GeneratorViewModelTest {
         telefono = "+5352345678",
         deviceId = "SPVI:abc-12345",
         tipo = TipoLicencia.MENSUAL,
-        solicitadaEn = "2026-10-03T20:00:00Z",
+        solicitadaEn = "2026-01-01T00:00:00Z",
         nonce = "AAAAAAAAAAAAAAAAAAAAAA==",
         devicePub = "AiuZGHe7sUgbFLfqufeF1BMCvKuYZQuJKYSxnIoc0zMK",
         secundarias = 2,
@@ -90,8 +90,8 @@ class GeneratorViewModelTest {
         val lic = licencias
         val reg = registro
         return GeneratorViewModel(
-            ValidarSolicitudUseCase(seg),
-            GenerarLicenciaUseCase(seg, FixedClock),
+            ValidarSolicitudUseCase(seg, FixedClock),
+            GenerarLicenciaUseCase(seg, FixedClock, lic),
             RegistrarLicenciaUseCase(lic, reg, FixedClock),
             puerta,
             EmitirSpvi2UseCase(puerta, lic, FixedClock),
@@ -143,6 +143,22 @@ class GeneratorViewModelTest {
         vm.registerNow()
         assertThat(vm.ui.value.success).isEqualTo("Registrada.")
         assertThat(vm.ui.value.canRegister).isFalse()
+    }
+
+    @Test
+    fun repeatedGenerateTapDoesNotReplaceThePendingLicense() = runTest {
+        val vm = vm()
+        vm.onRawChange("ok")
+        vm.onTxClienteChange("TX-100")
+        vm.onTxSmsChange("TX-100")
+        vm.setPaid(true)
+
+        vm.generateLicense()
+        val firstId = vm.ui.value.pending?.id
+        vm.generateLicense()
+
+        assertThat(firstId).isNotNull()
+        assertThat(vm.ui.value.pending?.id).isEqualTo(firstId)
     }
 
     @Test

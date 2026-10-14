@@ -16,9 +16,25 @@ import dev.gl.license.security.RegistryPack
 import dev.gl.license.security.SecureLog
 import kotlinx.serialization.json.Json
 import org.junit.Test
+import java.security.KeyPairGenerator
+import java.security.spec.ECGenParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
 class CryptoEngineTest {
+
+    @Test
+    fun canonicalAadUsesUtf8LengthPrefixedWithFourByteBigEndian() {
+        val expected = byteArrayOf(
+            0, 0, 0, 1, '1'.code.toByte(),
+            0, 0, 0, 2, 0xc3.toByte(), 0xa9.toByte(),
+        )
+
+        assertThat(CryptoEngine.canonical(listOf("1", "é")).contentEquals(expected)).isTrue()
+        assertThat(
+            CryptoEngine.canonical(listOf("a|b", "c"))
+                .contentEquals(CryptoEngine.canonical(listOf("a", "b|c"))),
+        ).isFalse()
+    }
 
     @Test
     fun aesGcmRoundTripAndAadBind() {
@@ -48,6 +64,23 @@ class CryptoEngineTest {
         val a = CryptoEngine.generateEphemeralP256()
         val b = CryptoEngine.generateEphemeralP256()
         assertThat(CryptoEngine.ecdh(a.private, b.public)).isEqualTo(CryptoEngine.ecdh(b.private, a.public))
+    }
+
+    @Test
+    fun publicKeyParserRejectsNonP256Curves() {
+        val p256 = CryptoEngine.generateEphemeralP256().public
+        assertThat(CryptoEngine.parseEcPublic(CryptoEngine.b64(p256.encoded))).isEqualTo(p256)
+
+        val p384Generator = KeyPairGenerator.getInstance("EC")
+        p384Generator.initialize(ECGenParameterSpec("secp384r1"))
+        val p384 = p384Generator.generateKeyPair().public
+        var rejected = false
+        try {
+            CryptoEngine.parseEcPublic(CryptoEngine.b64(p384.encoded))
+        } catch (_: IllegalArgumentException) {
+            rejected = true
+        }
+        assertThat(rejected).isTrue()
     }
 
     @Test
@@ -94,10 +127,44 @@ class CryptoEngineTest {
         val aes = SecretKeySpec(CryptoEngine.randomBytes(32), "AES")
         val kp = CryptoEngine.generateEphemeralP256()
         val packed = RegistryPack.pack("licenses".toByteArray(), aes, kp.private)
+        assertThat(packed[4].toInt() and 0xff).isEqualTo(2)
         val out = RegistryPack.unpack(packed, aes, kp.public)
         assertThat((out as Outcome.Ok).value.decodeToString()).isEqualTo("licenses")
+        val wrongVersion = packed.copyOf().also { it[4] = 1 }
+        assertThat(RegistryPack.unpack(wrongVersion, aes, kp.public)).isInstanceOf(Outcome.Err::class.java)
         packed[0] = 'X'.code.toByte()
         assertThat(RegistryPack.unpack(packed, aes, kp.public)).isInstanceOf(Outcome.Err::class.java)
+    }
+
+    @Test
+    fun registryPackStillImportsLegacyV1() {
+        val aes = SecretKeySpec(CryptoEngine.randomBytes(32), "AES")
+        val kp = CryptoEngine.generateEphemeralP256()
+        val plaintext = "legacy-licenses".toByteArray()
+        val (iv, ciphertext, tag) = CryptoEngine.aesGcmEncrypt(
+            aes,
+            plaintext,
+            aad = CryptoEngine.AAD_REG.toByteArray(Charsets.UTF_8),
+        )
+        val signature = CryptoEngine.sign(kp.private, iv + ciphertext + tag)
+        val legacy = CryptoEngine.REG_MAGIC.toByteArray(Charsets.US_ASCII) +
+            byteArrayOf(1) + iv + tag +
+            CryptoEngine.intToBe(ciphertext.size) + ciphertext +
+            CryptoEngine.intToBe(signature.size) + signature
+
+        val out = RegistryPack.unpack(legacy, aes, kp.public)
+
+        assertThat((out as Outcome.Ok).value.decodeToString()).isEqualTo("legacy-licenses")
+    }
+
+    @Test
+    fun registryPackRejectsTrailingBytes() {
+        val aes = SecretKeySpec(CryptoEngine.randomBytes(32), "AES")
+        val kp = CryptoEngine.generateEphemeralP256()
+        val packed = RegistryPack.pack("licenses".toByteArray(), aes, kp.private)
+
+        assertThat(RegistryPack.unpack(packed + byteArrayOf(0), aes, kp.public))
+            .isInstanceOf(Outcome.Err::class.java)
     }
 
     @Test
@@ -124,6 +191,7 @@ class CryptoEngineTest {
             type = LicenseType.MENSUAL,
             requestedAtIso = "2026-01-01T00:00:00Z",
             nonce = "AAAAAAAAAAAAAAAAAAAAAA==",
+            devicePublicKeyPem = CryptoEngine.b64(CryptoEngine.generateEphemeralP256().public.encoded),
         )
         assertThat(FieldValidator.validateRequest(req)).isInstanceOf(Outcome.Ok::class.java)
         assertThat(FieldValidator.validateRequest(req.copy(phone = "00"))).isInstanceOf(Outcome.Err::class.java)

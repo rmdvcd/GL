@@ -18,6 +18,7 @@ import dev.gl.license.domain.usecase.FieldValidator
 import dev.gl.license.domain.usecase.GenerarLicenciaUseCase
 import dev.gl.license.domain.usecase.ImportarRegistroUseCase
 import dev.gl.license.domain.usecase.RegistrarLicenciaUseCase
+import dev.gl.license.domain.usecase.ValidarSolicitudUseCase
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
@@ -86,7 +87,7 @@ internal class MemSeg : SeguridadRepository {
     var blob: ByteArray = byteArrayOf(1, 2, 3)
     override fun descifrarSolicitud(raw: String) =
         if (raw == "ok") Outcome.Ok(req()) else Outcome.Err(dev.gl.license.core.AppError.InvalidPayload)
-    override fun cifrarLicencia(license: Licencia, devicePubPem: String?): Outcome<String> {
+    override fun cifrarLicencia(license: Licencia, devicePubPem: String): Outcome<String> {
         lastPlain = license
         return Outcome.Ok("ENVELOPE")
     }
@@ -98,7 +99,7 @@ internal class MemSeg : SeguridadRepository {
 }
 
 internal object FixedClock : SecureClock {
-    override fun nowEpochMillis() = 1_735_689_600_000L
+    override fun nowEpochMillis() = 1_767_225_600_000L
     override fun nowIso() = "2026-01-01T00:00:00Z"
 }
 
@@ -112,7 +113,43 @@ class DomainLayerTest {
     }
 
     @Test
-    fun generarRequierePagoYCalculaVencimiento() {
+    fun relojInvalidoBloqueaValidacionYEmision() = runTest {
+        val invalidClock = object : SecureClock {
+            override fun nowEpochMillis(): Long = error("reloj no disponible")
+            override fun nowIso(): String = "fecha-invalida"
+        }
+        val seg = MemSeg()
+
+        val validation = ValidarSolicitudUseCase(seg, invalidClock)("ok")
+        assertThat(validation).isInstanceOf(Outcome.Err::class.java)
+        assertThat((validation as Outcome.Err).error)
+            .isEqualTo(dev.gl.license.core.AppError.ClockFailure)
+
+        val generation = GenerarLicenciaUseCase(seg, invalidClock, MemLic())(req(), true)
+        assertThat(generation).isInstanceOf(Outcome.Err::class.java)
+        assertThat((generation as Outcome.Err).error)
+            .isEqualTo(dev.gl.license.core.AppError.ClockFailure)
+
+        val validLicense = (GenerarLicenciaUseCase(seg, FixedClock, MemLic())(req(), true) as Outcome.Ok)
+            .value.first
+        val registrationRepository = MemLic()
+        val registration = RegistrarLicenciaUseCase(registrationRepository, MemReg(), invalidClock)(validLicense)
+        assertThat(registration).isInstanceOf(Outcome.Err::class.java)
+        assertThat((registration as Outcome.Err).error)
+            .isEqualTo(dev.gl.license.core.AppError.ClockFailure)
+        assertThat(registrationRepository.all()).isEmpty()
+
+        val archiveCrypto = MemSeg().apply { lastPlain = validLicense }
+        val importRepository = MemLic()
+        val imported = ImportarRegistroUseCase(archiveCrypto, importRepository, MemReg(), invalidClock)(archiveCrypto.blob)
+        assertThat(imported).isInstanceOf(Outcome.Err::class.java)
+        assertThat((imported as Outcome.Err).error)
+            .isEqualTo(dev.gl.license.core.AppError.ClockFailure)
+        assertThat(importRepository.all()).isEmpty()
+    }
+
+    @Test
+    fun generarRequierePagoYCalculaVencimiento() = runTest {
         val seg = MemSeg()
         val uc = GenerarLicenciaUseCase(seg, FixedClock)
         assertThat(uc(req(), false)).isInstanceOf(Outcome.Err::class.java)
@@ -126,7 +163,7 @@ class DomainLayerTest {
     }
 
     @Test
-    fun generarRechazaSolicitudV1DeSpviSinCifrar() {
+    fun generarRechazaSolicitudV1DeSpviSinCifrar() = runTest {
         val seg = MemSeg()
         val uc = GenerarLicenciaUseCase(seg, FixedClock)
         val solicitud = req().copy(

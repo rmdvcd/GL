@@ -485,7 +485,7 @@ private fun PaymentAndActions(
     GlPrimaryButton(
         text = stringResource(R.string.generate_license),
         onClick = onGenerate,
-        enabled = paid && txMatch && !loading,
+        enabled = paid && txMatch && !loading && !hasEncryptedLicense,
         loading = loading && !hasEncryptedLicense,
     )
     Spacer(Modifier.height(8.dp))

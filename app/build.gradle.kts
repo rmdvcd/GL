@@ -23,6 +23,7 @@ android {
 
     buildTypes {
         release {
+            buildConfigField("String", "MASTER_KEY_CODE", "\"\"")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -31,6 +32,7 @@ android {
             )
         }
         debug {
+            buildConfigField("String", "MASTER_KEY_CODE", "\"GLMK-PERM-MAXS-9999\"")
             isMinifyEnabled = false
             applicationIdSuffix = ".debug"
         }
@@ -99,9 +101,6 @@ dependencies {
     implementation(libs.sqlcipher)
     implementation(libs.androidx.sqlite)
 
-    implementation(libs.androidx.security.crypto)
-    implementation(libs.androidx.biometric)
-    implementation(libs.androidx.datastore.preferences)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.bouncycastle)

@@ -29,9 +29,15 @@ class LicenseRepositoryImpl @Inject constructor(
 
     override suspend fun merge(incoming: List<IssuedLicense>): Outcome<Int> = try {
         val existing = dao.all().associateBy { it.id }
-        val toWrite = incoming.filter { lic ->
+        val toWrite = incoming.mapNotNull { lic ->
             val old = existing[lic.id]
-            old == null || lic.issuedAtIso >= old.issuedAtIso
+            when {
+                old == null -> lic
+                lic.issuedAtIso < old.issuedAtIso -> null
+                lic.precioCobrado == null && old.precioCobrado != null ->
+                    lic.copy(precioCobrado = old.precioCobrado)
+                else -> lic
+            }
         }
         dao.upsertAll(toWrite.map { it.toEntity() })
         Outcome.Ok(toWrite.size)
@@ -41,9 +47,8 @@ class LicenseRepositoryImpl @Inject constructor(
 
     override suspend fun all(): List<IssuedLicense> = dao.all().map { it.toDomain() }
 
-    override suspend fun isTransactionUsed(txNumber: String): Boolean = try {
-        if (txNumber.isBlank()) false else dao.countByTxNumber(txNumber.trim()) > 0
-    } catch (_: Exception) {
-        false
+    override suspend fun isTransactionUsed(txNumber: String): Boolean {
+        if (txNumber.isBlank()) return false
+        return dao.countByTxNumber(txNumber.trim()) > 0
     }
 }

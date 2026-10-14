@@ -1,65 +1,39 @@
-# Informe de revisión final — GL
+# Informe de revisión — GL
 
-Actualizado tras compilar y ejecutar en dispositivo real (Xiaomi, API 35). Estado verificado, no supuesto.
+**Actualización:** 2026-10-14. Esta nota resume las correcciones estáticas preparadas en la rama de auditoría. No sustituye una revisión de release ni acredita que el código compile.
 
-## 1. Compilación / tests
+## Estado de verificación de esta rama
 
 | Ítem | Estado |
-|------|--------|
-| `:app:assembleDebug` | **OK** (46.9 MB) |
-| `:app:testDebugUnitTest` | **OK** — 29 tests / 7 suites / 0 fallos |
-| `:app:connectedDebugAndroidTest` | **OK** — `KeystoreCryptoTest`, `SmokeTest`, `MainFlowsTest` |
-| Kotlin DSL + version catalog | OK |
-| min 26 / target 35 | OK |
-| R8 release + `proguard-rules.pro` | Declarado (`Log` stripped) |
-| Hilt + KSP | OK |
-| Lint | No corrido |
+|---|---|
+| `:app:assembleDebug` / `:app:assembleRelease` | No ejecutados: faltan Java, Gradle y Android SDK en esta sesión |
+| `:app:testDebugUnitTest` | No ejecutado; el árbol contiene 167 métodos `@Test` unitarios según conteo estático |
+| `:app:connectedDebugAndroidTest` | No ejecutado; `LicenseGenerationE2ETest` permanece en `@Ignore` |
+| Lint / release minificado / firma | No ejecutados |
+| Compatibilidad ECDH de Keystore en API 26–30 | Pendiente; no se elevó `minSdk` ni se afirma un fallback seguro |
 
-## 2. Seguridad
+## Correcciones aplicadas estáticamente
 
-| Control | Implementado |
-|---------|----------------|
-| FLAG_SECURE | `SecureUi` en `MainActivity` |
-| Backups | `allowBackup=false`, data extraction exclude all |
-| Logs release | R8 `assumenosideeffects` Log |
-| Keystore AES/EC + StrongBox best-effort | `KeystoreManager` |
-| SQLCipher | passphrase envuelta, IV generado por el Keystore |
-| `.glreg` cifrado+firmado, no portable | `RegistryPack` |
-| Portapapeles solo primer plano+foco | `GeneratorViewModel` |
-| Sin INTERNET en manifest | Sí |
-| Sin secretos hardcodeados | Sí |
-| **Gate de sesión** | **No. Se retiró el módulo de autenticación.** |
+- El helper de solicitudes v1 usa el mismo IV para HKDF y AES-GCM, exige `devicePub` y valida EC P-256. Se añadió un round-trip JVM. El fixture E2E ahora incluye `devicePub` y transacciones coincidentes, pero continúa ignorado.
+- `MASTER_KEY_CODE` se define en `BuildConfig` solo para debug; release lo recibe vacío. La tarjeta se oculta fuera de debug y `MasterKey.isMasterKey` falla cerrado por defecto.
+- La frescura v1 y SPVI usa una ventana exacta de hasta 72 horas de antigüedad y 2 horas de adelanto. Un fallo al leer/parsear el reloj ya no se convierte en una omisión de esa validación.
+- SPVI valida la solicitud antes de emitir, limita entrada/código y conserva `txNumber`. La consulta de duplicados es suspendida, case-insensitive y fail-closed; no se hace `runBlocking`.
+- `.glreg` exporta formato local v2 con AAD versionada, limita el paquete a 32 MiB y 10 000 entradas, lee el archivo con límite, comprueba longitudes y bytes sobrantes y conserva `precioCobrado` fuera del JSON de licencia. El importador acepta paquetes v1 antiguos y no borra un precio local existente cuando falta el metadato.
+- Las validaciones asíncronas descartan resultados obsoletos; se bloquean taps de generación/registro duplicados. Los errores de lectura del historial ya no se interpretan como historial vacío.
+- `devicePub` es obligatorio en cifrado v1 y se valida como EC P-256. Se retiraron biometría/PIN residual, permisos asociados y dependencias directas sin uso. La copia individual de claves etiqueta correctamente la clave de firma.
+- La documentación del AAD v1 se alineó con `CryptoEngine.canonical()` y el ejemplo de cliente requiere un `expectedLicenseId` externo que compara con el ID descifrado.
 
-## 3. UI
+## Riesgos o decisiones aún pendientes
 
-- Tema M3 oscuro forzado (`GlTheme`).
-- `enableEdgeToEdge` + `WindowInsets.safeDrawing` / `navigationBars`.
-- Arranque directo al Generador; bottom bar Generador ↔ Registro.
-- Countdown 1 Hz solo con pestaña Registro visible; Perpetua / Vencida.
+1. **Replay:** el nonce no se consume ni se guarda. La ventana temporal no impide reusar la solicitud dentro de ella; el reloj de pared puede retroceder.
+2. **Deduplicación de pagos no atómica:** `txNumber` se comprueba contra licencias ya guardadas, pero no hay reserva transaccional ni índice único. El registro ocurre después de compartir la licencia y sigue existiendo una ventana de carrera. La coincidencia de entrada cliente/SMS es manual, no una verificación con una pasarela.
+3. **`devicePub`:** GL cifra hacia la clave pública suministrada, pero no prueba posesión, attestation de hardware ni vínculo con `deviceId`.
+4. **Android 26–30:** la política ECDH de Keystore no tiene una compatibilidad/fallback validado en esta sesión. Mantener `minSdk = 26` hasta decisión y pruebas explícitas.
+5. **Sin gate de sesión:** quien tenga el dispositivo desbloqueado puede acceder al registro y a la pestaña Claves. SQLCipher y `FLAG_SECURE` no sustituyen autenticación.
+6. **E2E y release:** falta validar el happy path con Keystore/Room en un runner Android compatible y un build release minificado/firmado reproducible.
+7. **Deuda de datos:** `EvaluarSolicitudHistorialUseCase` todavía carga todas las licencias y filtra en memoria; `txNumber` no tiene índice, así que la consulta puede crecer con el registro.
+8. **Claves públicas de referencia:** son por instalación y rotan al borrar datos/reinstalar. Verifica huellas en la pestaña Claves antes de fijarlas; no uses snapshots antiguos como claves universales.
 
-## 4. Permisos y manifest
+## Historial
 
-Sin permisos propios (los de biometría se retiraron). Queries WhatsApp/SMS. Activity única exported launcher. `networkSecurityConfig` sin cleartext.
-
-## 5. Bugs reales encontrados y corregidos en dispositivo
-
-Estos no los detectable ningún test JVM; aparecieron al ejecutar en hardware:
-
-1. **`InvalidAlgorithmParameterException: Caller-provided IV not permitted`.** `KeystoreManager` fija `setRandomizedEncryptionRequired(true)` pero `CryptoEngine` pasaba IV del llamante. Rompía el primer arranque tras instalación limpia, al crear la BD. Corregido con try/catch: se usa `cipher.iv` del Keystore.
-2. **`UnsatisfiedLinkError` en instrumentados.** `HiltTestRunner` sustituye la Application, así que `GlApplication.onCreate()` no corría y `libsqlcipher.so` nunca se cargaba. Creado `core/AppRuntime.kt`, invocado desde `Application` y desde `ProvideModule.db()`.
-3. **Dos errores de compilación en `src/main`**: import `semantics` ausente en `DetailScreen.kt` y un `run {}` inválido sobre un *paquete* en `RegistroRepositoryImpl.kt`.
-
-## 6. Limitaciones restantes (conocidas)
-
-1. **No hay autenticación.** Quien tenga el teléfono desbloqueado accede al registro. Es el cambio de mayor impacto.
-2. Happy path (`envelope` → generar → registrar) **sin cobertura verde**: `LicenseGenerationE2ETest` en `@Ignore`.
-3. `.glreg` atado al Keystore del teléfono.
-4. Sin `devicePub` → cifrado de licencia no exclusivo del cliente.
-5. Reloj local; sin revocación remota.
-6. ECDH Keystore `AGREE_KEY` solo API 31+.
-7. Room test in-memory no usa SQLCipher.
-8. FLAG_SECURE puede impedir leer el portapapeles en algunos OEMs; el usuario puede pegar a mano.
-9. Release sin `signingConfig` en Gradle (firma manual).
-10. No hay `gradlew` ni `gradle-wrapper.jar` en el repo.
-
-**Veredicto:** app instalada y recorrida a mano en API 35: arranque, Generador, validación de envelope inválido, Registro, y roundtrip export→import `.glreg`. Falta el happy path cifrado por la limitación 2.
+`AUDIT_2026-10-14.md` conserva los hallazgos de baseline y un estado de remediación separado. `docs/TESTING.md` documenta comandos, conteos estáticos y las limitaciones de verificación. Los resultados previos de otros entornos son históricos y no se presentan como pruebas de esta rama.
