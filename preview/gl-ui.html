@@ -125,30 +125,60 @@
           ${meta('CI', '85010112345')}
           ${meta('Vía', 'WHATSAPP')}
           ${meta('Teléfono', '+53 5234 5678')}
+          ${meta('Dispositivo', 'Pixel 8 Pro')}
+          ${meta('App', 'SPVI')}
           ${meta('Tipo', 'MENSUAL')}
           ${meta('Apps secundarias', '2')}
           <p class="price">8 000 CUP · Importe calculado</p>
         `)}
         ${card(`
           <div class="section" style="margin-top:0">2. Confirmar pago</div>
-          <p class="muted" style="text-align:center">Confirma el cobro antes de crear la licencia.</p>
-          <label class="checkline"><input id="paid" type="checkbox"> Pago realizado</label>
+          <p class="muted" style="text-align:center; margin-bottom:10px;">Introduce el No. transacción de cliente y de SMS. La confirmación solo se habilita si coinciden.</p>
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <div>
+              <label style="font-size:11px; color:var(--mute); display:block; margin-bottom:3px;">No. transacción (cliente)</label>
+              <input id="txCliente" class="field" style="min-height:38px; height:38px; padding:6px 10px;" placeholder="Ej. 98765432" />
+            </div>
+            <div>
+              <label style="font-size:11px; color:var(--mute); display:block; margin-bottom:3px;">No. transacción (SMS)</label>
+              <input id="txSms" class="field" style="min-height:38px; height:38px; padding:6px 10px;" placeholder="Ej. 98765432" />
+            </div>
+            <div id="txStatus" style="font-size:12px; color:var(--mute); text-align:center; margin-top:2px;">Introduce ambos números de transacción.</div>
+          </div>
+          <label class="checkline" style="margin-top:8px;"><input id="paid" type="checkbox" disabled> Pago realizado</label>
         `)}
-        <button class="primary full" id="generate">Generar licencia</button>
+        <button class="primary full disabled" id="generate" disabled>Generar licencia</button>
         <button class="secondary full disabled">Registrar (vuelve del envío)</button>
       `,
       registry: () => `
         ${header('Registro', '2 licencias en este teléfono')}
         <div class="button-row"><button class="secondary">Importar</button><button class="primary">Exportar</button></div>
         ${card(`
-          <div class="license-top"><div><h3>María Pérez González</h3><p>MENSUAL · WHATSAPP</p></div><span class="status">ACTIVA</span></div>
-          <p class="muted">Emitida: 03/10/2026 · 20:00</p>
-          <p class="muted">2 secundarias · 8 000 CUP</p>
+          <div class="license-top" style="align-items:flex-start;">
+            <div>
+              <h3 style="font-size:15px; margin:0;">María Pérez González</h3>
+              <p style="color:var(--mute); font-size:13px; margin:2px 0 0;">SPVI</p>
+            </div>
+            <div style="text-align:right;">
+              <span class="status" style="font-size:13px; display:block;">MENSUAL</span>
+              <span style="color:var(--mute); font-size:12px;">2 sec. · 8 000 CUP</span>
+            </div>
+          </div>
+          <p class="muted" style="margin-top:8px;">Emitida: 03/10/2026 · 20:00</p>
           <p class="countdown">29d 04:18:02</p>
         `)}
         ${card(`
-          <div class="license-top"><div><h3>Luis Mora</h3><p>PERPETUA · SMS</p></div><span class="status">PERPETUA</span></div>
-          <p class="muted">Emitida: 11/08/2026 · 09:20</p>
+          <div class="license-top" style="align-items:flex-start;">
+            <div>
+              <h3 style="font-size:15px; margin:0;">Luis Mora</h3>
+              <p style="color:var(--mute); font-size:13px; margin:2px 0 0;">MiApp</p>
+            </div>
+            <div style="text-align:right;">
+              <span class="status" style="font-size:13px; display:block;">PERPETUA</span>
+              <span style="color:var(--mute); font-size:12px;">0 sec. · 90 000 CUP</span>
+            </div>
+          </div>
+          <p class="muted" style="margin-top:8px;">Emitida: 11/08/2026 · 09:20</p>
           <p class="countdown">Perpetua</p>
         `)}
       `,
@@ -160,7 +190,14 @@
         <button class="primary full">Copiar</button>
       `,
       keys: () => `
-        ${header('Claves públicas', 'Fíjalas en la app cliente. Son públicas; si cambias de teléfono tendrás que exportarlas de nuevo.')}
+        ${header('Claves públicas y maestra', 'Fíjalas en la app cliente o usa la clave maestra para testear.')}
+        ${card(`
+          <h3 style="margin:0 0 6px; color:var(--gold);">Clave maestra de desarrollo</h3>
+          <p class="muted" style="margin-bottom:8px;">Habilita de forma permanente y con el máximo de apps secundarias (10) cualquier app que reciba claves de este generador para pruebas del desarrollador.</p>
+          <p style="margin:0 0 6px; font-weight:700; color:var(--ok); font-size:12px;">PERMANENTE · 10 APPS SECUNDARIAS</p>
+          <div class="key" style="font-size:15px; font-weight:700; text-align:center; letter-spacing:0.08em; padding:10px;">GLMK-PERM-MAXS-9999</div>
+          <button class="secondary full" id="copyMaster">Copiar clave maestra</button>
+        `)}
         ${card(`<h3 style="margin:0 0 7px">Clave de cifrado</h3><p class="muted">ECDH P-256 · huella SHA-256</p><div class="key">sha256:7b51:64d9:2ca9:4e14:5fc2:…</div><p class="muted">Base64 (SPKI)</p><div class="key">MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE…</div><button class="secondary full">Copiar esta clave</button>`)}
         ${card(`<h3 style="margin:0 0 7px">Clave de firma</h3><p class="muted">ECDSA P-256 · huella SHA-256</p><div class="key">sha256:8a91:2f8c:63be:ee4a:9d1b:…</div><p class="muted">Base64 (SPKI)</p><div class="key">MFkwEwYHKoZIzj0CAQYIKoZIz0DAQcDQgAE…</div><button class="secondary full">Copiar esta clave</button>`)}
         <button class="primary full">Copiar ambas claves</button>
@@ -170,14 +207,66 @@
     function render(screen) {
       app.innerHTML = screens[screen]();
       nav.forEach(button => button.classList.toggle('active', button.dataset.screen === screen));
-      const paid = document.querySelector('#paid');
-      const generate = document.querySelector('#generate');
-      if (paid && generate) {
-        generate.style.opacity = '.46';
-        paid.addEventListener('change', () => { generate.style.opacity = paid.checked ? '1' : '.46'; });
+
+      if (screen === 'generator') {
+        const txCliente = document.querySelector('#txCliente');
+        const txSms = document.querySelector('#txSms');
+        const txStatus = document.querySelector('#txStatus');
+        const paid = document.querySelector('#paid');
+        const generate = document.querySelector('#generate');
+
+        function checkTx() {
+          const c = txCliente.value.trim();
+          const s = txSms.value.trim();
+          if (!c || !s) {
+            txStatus.textContent = 'Introduce ambos números de transacción.';
+            txStatus.style.color = 'var(--mute)';
+            paid.disabled = true;
+            paid.checked = false;
+            generate.classList.add('disabled');
+            generate.disabled = true;
+          } else if (c === s) {
+            txStatus.textContent = 'Transacción validada: los números coinciden.';
+            txStatus.style.color = 'var(--ok)';
+            paid.disabled = false;
+            if (paid.checked) {
+              generate.classList.remove('disabled');
+              generate.disabled = false;
+            }
+          } else {
+            txStatus.textContent = 'Los números de transacción no coinciden.';
+            txStatus.style.color = 'var(--danger)';
+            paid.disabled = true;
+            paid.checked = false;
+            generate.classList.add('disabled');
+            generate.disabled = true;
+          }
+        }
+
+        txCliente?.addEventListener('input', checkTx);
+        txSms?.addEventListener('input', checkTx);
+        paid?.addEventListener('change', () => {
+          if (paid.checked && txCliente.value.trim() === txSms.value.trim() && txCliente.value.trim()) {
+            generate.classList.remove('disabled');
+            generate.disabled = false;
+          } else {
+            generate.classList.add('disabled');
+            generate.disabled = true;
+          }
+        });
+
+        generate?.addEventListener('click', () => {
+          alert('Licencia generada con código de 16 caracteres: 4K7N-9X2M-B8PQ-3T5V');
+        });
       }
+
       document.querySelector('#paste')?.addEventListener('click', () => {
         document.querySelector('.field').value = 'SPVIR1: solicitud pegada y lista para validar…';
+      });
+
+      document.querySelector('#copyMaster')?.addEventListener('click', () => {
+        navigator.clipboard?.writeText('GLMK-PERM-MAXS-9999');
+        alert('Clave maestra GLMK-PERM-MAXS-9999 copiada al portapapeles');
       });
     }
     nav.forEach(button => button.addEventListener('click', () => render(button.dataset.screen)));

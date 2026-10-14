@@ -1,4 +1,4 @@
-﻿package dev.gl.license
+package dev.gl.license
 
 import com.google.common.truth.Truth.assertThat
 import dev.gl.license.core.AppError
@@ -12,6 +12,10 @@ import dev.gl.license.domain.usecase.FieldValidator
 import org.junit.Test
 
 class FieldValidatorTest {
+    private companion object {
+        const val TEST_PUB_KEY = "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEq+BkCJzxNvUEV6J0XQyY0g71EvOfZ87syGdhURoMlOdgWFlEVs2aDxsGlia4Df+ZS6LPE6dmfCpCGZhSoC6J1Q=="
+    }
+
     private fun valid() = LicenseRequest(
         version = CONTRACT_VERSION,
         firstName = "Ana",
@@ -24,11 +28,45 @@ class FieldValidatorTest {
         type = LicenseType.MENSUAL,
         requestedAtIso = "2026-01-01T00:00:00Z",
         nonce = "AAAAAAAAAAAAAAAAAAAAAA==",
+        devicePublicKeyPem = TEST_PUB_KEY,
     )
 
     @Test
     fun acceptsValid() {
         assertThat(FieldValidator.validateRequest(valid())).isInstanceOf(Outcome.Ok::class.java)
+    }
+
+    @Test
+    fun rejectsMissingDevicePub() {
+        val r = valid().copy(devicePublicKeyPem = null)
+        val res = FieldValidator.validateRequest(r)
+        assertThat(res).isInstanceOf(Outcome.Err::class.java)
+        assertThat((res as Outcome.Err).error).isEqualTo(AppError.DevicePubRequired)
+    }
+
+    @Test
+    fun rejectsInvalidDevicePub() {
+        val r = valid().copy(devicePublicKeyPem = "NOT_A_KEY")
+        val res = FieldValidator.validateRequest(r)
+        assertThat(res).isInstanceOf(Outcome.Err::class.java)
+        assertThat((res as Outcome.Err).error).isEqualTo(AppError.InvalidPayload)
+    }
+
+    @Test
+    fun rejectsRequestOlderThan72Hours() {
+        val r = valid().copy(requestedAtIso = "2026-01-01T00:00:00Z")
+        val now = java.time.Instant.parse("2026-01-04T01:00:00Z") // 73 hours
+        val res = FieldValidator.validateRequest(r, now = now)
+        assertThat(res).isInstanceOf(Outcome.Err::class.java)
+        assertThat((res as Outcome.Err).error).isEqualTo(AppError.RequestExpired)
+    }
+
+    @Test
+    fun acceptsRequestWithin72Hours() {
+        val r = valid().copy(requestedAtIso = "2026-01-01T00:00:00Z")
+        val now = java.time.Instant.parse("2026-01-03T12:00:00Z") // 60 hours
+        val res = FieldValidator.validateRequest(r, now = now)
+        assertThat(res).isInstanceOf(Outcome.Ok::class.java)
     }
 
     @Test
@@ -58,6 +96,21 @@ class FieldValidatorTest {
     @Test
     fun acceptsAppNameWithSpaces() {
         val r = valid().copy(appName = "Mi App v2")
+        assertThat(FieldValidator.validateRequest(r)).isInstanceOf(Outcome.Ok::class.java)
+    }
+
+    @Test
+    fun acceptsRequestWithDispositivoAndUsuario() {
+        val r = valid().copy(
+            dispositivo = "Pixel 8 Pro",
+            usuario = dev.gl.license.domain.model.DatosUsuario(
+                nombre = "Carlos",
+                apellidos = "Ramirez",
+                ci = "90020212345",
+                telefono = "+5351234567",
+                via = RequestChannel.SMS,
+            ),
+        )
         assertThat(FieldValidator.validateRequest(r)).isInstanceOf(Outcome.Ok::class.java)
     }
 

@@ -188,8 +188,19 @@ object CryptoEngine {
         return r == 0
     }
 
-    fun canonical(parts: List<String>): ByteArray =
-        parts.joinToString("|").toByteArray(Charsets.UTF_8)
+    /**
+     * Canonicalización de AAD con longitud prefijada (Length-Prefixing) para cada campo.
+     * Inmune a colisiones o inyección de delimitadores.
+     */
+    fun canonical(parts: List<String>): ByteArray {
+        val bos = java.io.ByteArrayOutputStream()
+        for (part in parts) {
+            val bytes = part.toByteArray(Charsets.UTF_8)
+            bos.write(intToBe(bytes.size))
+            bos.write(bytes)
+        }
+        return bos.toByteArray()
+    }
 
     fun transcript(epkDer: ByteArray, iv: ByteArray, ct: ByteArray, tag: ByteArray): ByteArray =
         epkDer + iv + ct + tag

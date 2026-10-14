@@ -19,24 +19,49 @@ object FieldValidator {
     private val appNameRe = Regex("^[\\p{L}0-9 ._'-]{2,80}$")
     private val nonceRe = Regex("^[A-Za-z0-9+/=_-]{16,128}$")
 
-    fun validateRequest(r: SolicitudLicencia): Outcome<SolicitudLicencia> {
+    fun validateRequest(
+        r: SolicitudLicencia,
+        now: Instant? = null,
+        requireDevicePub: Boolean = true,
+    ): Outcome<SolicitudLicencia> {
         if (r.version != CONTRACT_VERSION) return Outcome.Err(AppError.InvalidPayload)
-        if (!nameRe.matches(r.firstName.trim()) || !nameRe.matches(r.lastName.trim())) {
+        val fn = r.effectiveFirstName.trim()
+        val ln = r.effectiveLastName.trim()
+        val ci = r.effectiveNationalId.trim()
+        val ph = r.effectivePhone.trim()
+        if (!nameRe.matches(fn) || !nameRe.matches(ln)) {
             return Outcome.Err(AppError.InvalidPayload)
         }
-        if (!ciRe.matches(r.nationalId.trim())) return Outcome.Err(AppError.InvalidPayload)
-        if (!phoneRe.matches(r.phone.trim())) return Outcome.Err(AppError.InvalidPayload)
+        if (!ciRe.matches(ci)) return Outcome.Err(AppError.InvalidPayload)
+        if (!phoneRe.matches(ph)) return Outcome.Err(AppError.InvalidPayload)
         if (!deviceRe.matches(r.deviceId.trim())) return Outcome.Err(AppError.InvalidPayload)
+        if (r.dispositivo.isNotBlank() && r.dispositivo.length > 80) return Outcome.Err(AppError.InvalidPayload)
         if (!appNameRe.matches(r.appName.trim())) return Outcome.Err(AppError.InvalidPayload)
         if (!nonceRe.matches(r.nonce.trim())) return Outcome.Err(AppError.InvalidPayload)
+        if (requireDevicePub) {
+            if (r.devicePublicKeyPem.isNullOrBlank()) {
+                return Outcome.Err(AppError.DevicePubRequired)
+            }
+            try {
+                CryptoEngine.parseEcPublic(r.devicePublicKeyPem)
+            } catch (_: Exception) {
+                return Outcome.Err(AppError.InvalidPayload)
+            }
+        }
         when (val secundarias = Secundarias.validar(r.appName, r.deviceId, r.secundarias)) {
             is Outcome.Err -> return secundarias
             is Outcome.Ok -> Unit
         }
-        try {
+        val reqInstant = try {
             Instant.parse(r.requestedAtIso)
         } catch (_: DateTimeParseException) {
             return Outcome.Err(AppError.InvalidPayload)
+        }
+        if (now != null) {
+            val diffHours = java.time.temporal.ChronoUnit.HOURS.between(reqInstant, now)
+            if (diffHours > 72 || diffHours < -2) {
+                return Outcome.Err(AppError.RequestExpired)
+            }
         }
         return Outcome.Ok(r)
     }
@@ -45,19 +70,20 @@ object FieldValidator {
         if (l.version == 2) return validateLicenseV2(l)
         val asReq = SolicitudLicencia(
             version = l.version,
+            deviceId = l.deviceId,
+            appName = l.appName,
+            dispositivo = l.dispositivo,
             firstName = l.firstName,
             lastName = l.lastName,
             nationalId = l.nationalId,
             channel = l.channel,
             phone = l.phone,
-            deviceId = l.deviceId,
-            appName = l.appName,
             secundarias = l.secundarias,
             type = l.type,
             requestedAtIso = l.requestedAtIso,
             nonce = l.nonce,
         )
-        when (val v = validateRequest(asReq)) {
+        when (val v = validateRequest(asReq, now = null, requireDevicePub = false)) {
             is Outcome.Err -> return v
             is Outcome.Ok -> Unit
         }

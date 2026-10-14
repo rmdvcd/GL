@@ -13,6 +13,7 @@ interface LicenciaRepository {
     suspend fun getById(id: String): Licencia?
     suspend fun merge(incoming: List<Licencia>): Outcome<Int>
     suspend fun all(): List<Licencia>
+    suspend fun isTransactionUsed(txNumber: String): Boolean = false
 }
 
 typealias LicenseRepository = LicenciaRepository

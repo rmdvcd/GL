@@ -40,4 +40,52 @@ object ClientRequestHelper {
         )
         return json.encodeToString(Envelope.serializer(), env)
     }
+
+    /**
+     * Construye una solicitud con todos los campos requeridos:
+     * - ID del dispositivo solicitante
+     * - Nombre de la app que solicita la licencia
+     * - Dispositivo desde el cual se solicita la licencia
+     * - Datos del usuario
+     * - Tipo de licencia solicitada y cantidad de apps secundarias
+     */
+    fun buildRequest(
+        deviceId: String,
+        appName: String,
+        dispositivo: String,
+        nombre: String,
+        apellidos: String,
+        ci: String,
+        telefono: String,
+        via: dev.gl.license.domain.model.ViaSolicitud,
+        tipo: dev.gl.license.domain.model.TipoLicencia,
+        secundarias: Int? = null,
+        devicePublicKeyPem: String? = null,
+    ): LicenseRequest {
+        val nowIso = java.time.Instant.now().toString()
+        val nonce = CryptoEngine.b64(CryptoEngine.randomBytes(16))
+        return LicenseRequest(
+            version = CONTRACT_VERSION,
+            deviceId = deviceId,
+            appName = appName,
+            dispositivo = dispositivo,
+            firstName = nombre,
+            lastName = apellidos,
+            nationalId = ci,
+            channel = via,
+            phone = telefono,
+            usuario = dev.gl.license.domain.model.DatosUsuario(
+                nombre = nombre,
+                apellidos = apellidos,
+                ci = ci,
+                telefono = telefono,
+                via = via,
+            ),
+            tipo = tipo,
+            secundarias = secundarias,
+            requestedAtIso = nowIso,
+            nonce = nonce,
+            devicePublicKeyPem = devicePublicKeyPem,
+        )
+    }
 }

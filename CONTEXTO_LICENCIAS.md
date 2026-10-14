@@ -33,6 +33,10 @@ Solo son claves públicas. No hay nada secreto en este JSON, y no por eso dejes 
 
 > **Aviso importante:** las claves son **de una instalación concreta**, no del producto GL. Android Keystore las genera localmente la primera vez que se usan. Si el usuario borra los datos de GL, reinstala la app o cambia de teléfono, sale un par distinto y **el cliente rechazará todo lo emitido con el par anterior**. Decide cómo vas a comunicar ese cambio (reinstalar el cliente con las claves nuevas suele ser lo más simple) antes de dar por cerrado el flujo.
 
+### Clave Maestra de Desarrollo (`GLMK-PERM-MAXS-9999`) y Código de 16 Caracteres
+A partir de la versión actual, las licencias emitidas generan un código legible de 16 caracteres alfanuméricos agrupados en grupos de 4 (`XXXX-XXXX-XXXX-XXXX`). Para pruebas del desarrollador, la app expone al inicio de la pestaña **Claves** la clave maestra `GLMK-PERM-MAXS-9999`, que habilita de forma permanente y con el máximo de apps secundarias (10) cualquier app cliente.
+Para la guía exhaustiva de implementación en apps cliente dirigida a otras IAs, ver `SISTEMA_LICENCIAS_CLIENTES.md`.
+
 ## Stack relevante
 
 Clean Architecture: `presentation` / `domain` / `data` / `security`.  
@@ -78,30 +82,41 @@ Verificación de solicitud en GL: firma de la efímera **o** de la clave de firm
 | `telefono` | E.164 `+` opcional, 8–15 dígitos | |
 | `deviceId` | 8–128 `[A-Za-z0-9:_-]` | |
 | `appName` | 2–80 `[\p{L}0-9 ._'-]` | **obligatorio** |
+| `dispositivo` | Modelo de hardware (ej. `Xiaomi Redmi Note 11`) | 1–80 caracteres |
+| `usuario` | Objeto anidado de datos de usuario | opcional/duplicado de raíz |
 | `secundarias` | entero 0–10, ausente o `null` | **opcional; otras apps, flujo v1** |
 | `tipo` | `MENSUAL` \| `SEMESTRAL` \| `ANUAL` \| `PERPETUA` | |
-| `solicitadaEn` | ISO-8601 Instant | `Instant.parse` |
+| `solicitadaEn` | ISO-8601 Instant | `Instant.parse`, **máximo 72h antigüedad** |
 | `nonce` | 16–128 Base64-url-ish | |
-| `devicePub` | SPKI P-256 PEM/Base64 o `null` | opcional |
+| `devicePub` | SPKI P-256 PEM/Base64 | **Obligatorio** (Opción A) |
 
 En el flujo v1 (otras apps), `secundarias` se ignora salvo que aplique a esa app; ausente o `null` significa «no indicado». `-1`, `11` o un valor no entero se rechazan con `InvalidSecundarias`. **SPVI ya no usa este flujo**: una solicitud v1 con `appName == "SPVI"` o `deviceId` con prefijo `SPVI:` se rechaza con «SPVI desactualizada: pide al cliente que instale SPVI 0.23.1 o posterior». Ver «SPVI 0.23.1» abajo.
 
-Si `devicePub` es null, GL cifra la licencia hacia **su propio** ECDH: el cliente **no** puede descifrar en exclusivo. Un cliente compatible **debe enviar `devicePub`**.
+`devicePub` es **estrictamente obligatorio** (mitigación Vuln 5, Opción A): GL exige la clave pública del dispositivo cliente para cifrar la licencia de forma exclusiva hacia ese hardware (`AppError.DevicePubRequired` si falta o es inválida).
 
 ### Cómo cifra el cliente la solicitud
 
-1. Par efímero P-256.
-2. ECDH(efímera_priv, **pública ECDH de GL**).
-3. HKDF-SHA256(shared, salt=IV de 12 B, info=`gl-req-v1`) → AES-256.
-4. GCM con AAD canónico; IV el mismo salt.
-5. `sig` = ECDSA(efímera_priv, epkDER||iv||ct||tag).
-6. Envelope JSON; el usuario lo copia; GL lo lee **solo en primer plano** (o pega).
+1. Par P-256 persistente en Android Keystore con respaldo de hardware (StrongBox/TEE).
+2. Par efímero P-256.
+3. ECDH(efímera_priv, **pública ECDH de GL**).
+4. HKDF-SHA256(shared, salt=IV de 12 B, info=`gl-req-v1`) → AES-256.
+5. GCM con AAD canónico (Length-Prefixing 4-byte big-endian); IV el mismo salt.
+6. `sig` = ECDSA(efímera_priv, epkDER||iv||ct||tag).
+7. Envelope JSON; el usuario lo copia; GL lo lee **solo en primer plano** (o pega).
 
 Las dos claves (cifrado y firma) salen de la pestaña **Claves** de la propia app. Ver "Cómo conseguir las claves públicas" arriba.
 
 ### Payload licencia (plaintext)
 
-Campos de la solicitud más: `id` (UUID), `emitidaEn`, `venceEn` (`null` si perpetua), `estado` (`ACTIVA`|`VENCIDA`|`REVOCADA`|`PERPETUA`), `secundarias` (solo cuando corresponde; se omite su clave si es `null`), `nonce` nuevo. `precioCobrado` existe solo en memoria/registro de GL y **no** viaja en el JSON firmado.
+Campos de la solicitud más: `id` (UUID), `emitidaEn`, `venceEn` (`null` si perpetua), `estado` (`ACTIVA`|`VENCIDA`|`REVOCADA`|`PERPETUA`), `licenciaObtenida` (código de 16 caracteres `XXXX-XXXX-XXXX-XXXX`), `secundarias`, `periodoRestante` (días remanentes acumulados si procede), `txNumber` (transacción bancaria), `codigoCorto` (igual a `licenciaObtenida`), `nonce` nuevo. `precioCobrado` existe en memoria/registro de GL y en Room, pero **no** viaja en el JSON firmado.
+
+### Clave Maestra de Desarrollo (`GLMK-PERM-MAXS-9999`)
+Habilita de forma inmediata y permanente (`PERPETUA`) cualquier app cliente con 10 secundarias para pruebas. **Restringida exclusivamente a builds DEBUG (`BuildConfig.DEBUG`)** para evitar accesos indebidos en producción (Opción A). En builds de release devuelve siempre falso.
+
+### Acumulación de Tiempo (Rollover) y Revalidación
+- Si el usuario tiene una licencia activa y solicita una nueva (sea del mismo tipo o diferente): GL calcula los días no transcurridos de la licencia activa y se los suma a la nueva licencia (`periodoRestante`). No aplica si la nueva es Perpetua o si la activa era de prueba.
+- Si el usuario tiene una licencia vencida y solicita el mismo tipo: se procesa como **Revalidación**, otorgando el periodo íntegro.
+- Para la guía exhaustiva y detallada de implementación en clientes, ver `SISTEMA_LICENCIAS_CLIENTES.md`.
 
 ## SPVI 0.23.1 (sustituye todo lo anterior de SPVI)
 

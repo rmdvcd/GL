@@ -14,6 +14,9 @@ sealed class AppError(val userMessage: String) : Exception(userMessage) {
     data object ExportFailure : AppError("No se pudo exportar el registro.")
     data object ImportFailure : AppError("No se pudo importar el registro.")
     data object Locked : AppError("La aplicación está bloqueada.")
+    data class TransactionAlreadyUsed(val tx: String) : AppError("El número de transacción $tx ya fue utilizado en una licencia previa.")
+    data object DevicePubRequired : AppError("La solicitud debe incluir la clave pública del dispositivo (devicePub).")
+    data object RequestExpired : AppError("La solicitud ha caducado (máximo 72 horas de antigüedad).")
     data object Generic : AppError("No se pudo completar la operación.")
 }
 

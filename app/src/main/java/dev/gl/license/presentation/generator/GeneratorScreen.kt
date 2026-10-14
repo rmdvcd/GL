@@ -184,20 +184,28 @@ fun GeneratorScreen(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Spacer(Modifier.height(GlDimens.gap))
                     V1RequestCard(
-                        firstName = request.firstName,
-                        lastName = request.lastName,
-                        nationalId = request.nationalId,
-                        channel = request.channel.name,
-                        phone = request.phone,
+                        firstName = request.effectiveFirstName,
+                        lastName = request.effectiveLastName,
+                        nationalId = request.effectiveNationalId,
+                        channel = request.effectiveChannel.name,
+                        phone = request.effectivePhone,
                         deviceId = request.deviceId,
+                        dispositivo = request.dispositivo,
                         appName = request.appName,
                         type = request.type.name,
+                        secundarias = request.secundarias,
                         requestedAt = request.requestedAtIso,
+                        infoAviso = ui.infoAviso,
                     )
                     Spacer(Modifier.height(GlDimens.gap))
                     PaymentAndActions(
                         paid = ui.paid,
                         loading = ui.loading,
+                        txCliente = ui.txCliente,
+                        txSms = ui.txSms,
+                        txMatch = ui.txMatch,
+                        onTxClienteChange = vm::onTxClienteChange,
+                        onTxSmsChange = vm::onTxSmsChange,
                         hasEncryptedLicense = ui.encryptedLicense != null,
                         canRegister = ui.canRegister,
                         onPaidChange = vm::setPaid,
@@ -233,6 +241,11 @@ fun GeneratorScreen(
                     PaymentAndActions(
                         paid = ui.paid,
                         loading = ui.loading,
+                        txCliente = ui.txCliente,
+                        txSms = ui.txSms,
+                        txMatch = ui.txMatch,
+                        onTxClienteChange = vm::onTxClienteChange,
+                        onTxSmsChange = vm::onTxSmsChange,
                         hasEncryptedLicense = ui.encryptedLicense != null,
                         canRegister = ui.canRegister,
                         onPaidChange = vm::setPaid,
@@ -282,9 +295,12 @@ private fun V1RequestCard(
     channel: String,
     phone: String,
     deviceId: String,
+    dispositivo: String,
     appName: String,
     type: String,
+    secundarias: Int?,
     requestedAt: String,
+    infoAviso: String?,
 ) {
     GlCard {
         RequestCardTitle()
@@ -293,9 +309,26 @@ private fun V1RequestCard(
         MetaRow(stringResource(R.string.field_channel), channel)
         MetaRow(stringResource(R.string.field_phone), phone)
         MetaRow(stringResource(R.string.field_device), deviceId)
+        if (dispositivo.isNotBlank()) {
+            MetaRow(stringResource(R.string.field_device_model), dispositivo)
+        }
         MetaRow(stringResource(R.string.field_app), appName)
         MetaRow(stringResource(R.string.field_type), type)
+        secundarias?.let {
+            MetaRow(stringResource(R.string.field_secondary_apps), it.toString())
+        }
         MetaRow(stringResource(R.string.field_requested_at), requestedAt)
+
+        if (infoAviso != null) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = infoAviso,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+                textAlign = TextAlign.Start,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
     }
 }
 
@@ -360,6 +393,11 @@ private fun RequestCardTitle() {
 private fun PaymentAndActions(
     paid: Boolean,
     loading: Boolean,
+    txCliente: String,
+    txSms: String,
+    txMatch: Boolean,
+    onTxClienteChange: (String) -> Unit,
+    onTxSmsChange: (String) -> Unit,
     hasEncryptedLicense: Boolean,
     canRegister: Boolean,
     onPaidChange: (Boolean) -> Unit,
@@ -375,28 +413,79 @@ private fun PaymentAndActions(
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth(),
         )
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(12.dp))
+
+        // Input 1 (arriba): No. transacción enviado por el cliente
+        OutlinedTextField(
+            value = txCliente,
+            onValueChange = onTxClienteChange,
+            label = { Text(stringResource(R.string.tx_cliente_label)) },
+            placeholder = { Text(stringResource(R.string.tx_cliente_hint)) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(8.dp))
+
+        // Input 2 (abajo): No. transacción extraído de los SMS
+        OutlinedTextField(
+            value = txSms,
+            onValueChange = onTxSmsChange,
+            label = { Text(stringResource(R.string.tx_sms_label)) },
+            placeholder = { Text(stringResource(R.string.tx_sms_hint)) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(8.dp))
+
+        val txStatusText = when {
+            txCliente.isBlank() || txSms.isBlank() -> stringResource(R.string.tx_pending_hint)
+            txMatch -> stringResource(R.string.tx_match_success)
+            else -> stringResource(R.string.tx_mismatch_error)
+        }
+        val txStatusColor = when {
+            txCliente.isBlank() || txSms.isBlank() -> MaterialTheme.colorScheme.onSurfaceVariant
+            txMatch -> MaterialTheme.colorScheme.primary
+            else -> MaterialTheme.colorScheme.error
+        }
+        Text(
+            text = txStatusText,
+            style = MaterialTheme.typography.bodySmall,
+            color = txStatusColor,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(10.dp))
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(GlDimens.touch)
                 .toggleable(
                     value = paid,
+                    enabled = txMatch,
                     role = Role.Checkbox,
-                    onValueChange = onPaidChange,
+                    onValueChange = { if (txMatch) onPaidChange(it) },
                 ),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center,
         ) {
-            Checkbox(checked = paid, onCheckedChange = null)
-            Text(stringResource(R.string.payment_done))
+            Checkbox(
+                checked = paid,
+                enabled = txMatch,
+                onCheckedChange = null,
+            )
+            Spacer(Modifier.padding(horizontal = 4.dp))
+            Text(
+                text = stringResource(R.string.payment_done),
+                color = if (txMatch) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+            )
         }
     }
     Spacer(Modifier.height(8.dp))
     GlPrimaryButton(
         text = stringResource(R.string.generate_license),
         onClick = onGenerate,
-        enabled = paid && !loading,
+        enabled = paid && txMatch && !loading,
         loading = loading && !hasEncryptedLicense,
     )
     Spacer(Modifier.height(8.dp))

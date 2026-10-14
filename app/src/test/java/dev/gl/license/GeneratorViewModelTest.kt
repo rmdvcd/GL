@@ -131,6 +131,8 @@ class GeneratorViewModelTest {
         val vm = vm()
         vm.onRawChange("ok")
         assertThat(vm.ui.value.solicitud).isNotNull()
+        vm.onTxClienteChange("TX-100")
+        vm.onTxSmsChange("TX-100")
         vm.setPaid(true)
         assertThat(vm.ui.value.paid).isTrue()
         vm.generateLicense()
@@ -147,6 +149,8 @@ class GeneratorViewModelTest {
     fun shareUsesTheThreeLineLicenseMessage() = runTest {
         val vm = vm()
         vm.onRawChange("ok")
+        vm.onTxClienteChange("TX-100")
+        vm.onTxSmsChange("TX-100")
         vm.setPaid(true)
         vm.generateLicense()
 
@@ -158,6 +162,7 @@ class GeneratorViewModelTest {
             6_000,
             pending?.id.orEmpty(),
             "ENVELOPE",
+            pending?.codigoCorto,
         )
 
         assertThat(vm.ui.value.shareBody).isEqualTo(expected)
@@ -197,6 +202,8 @@ class GeneratorViewModelTest {
     fun generarSpviEmiteMensajeConCodigo() = runTest {
         val vm = vm(puerta = PuertaFake(solicitud = solSpvi(), codigo = "SPVI2:CODIGO"))
         vm.onRawChange("SPVIR1:AAAA")
+        vm.onTxClienteChange("TX-SPVI")
+        vm.onTxSmsChange("TX-SPVI")
         vm.setPaid(true)
         vm.generateLicense()
 
@@ -210,6 +217,8 @@ class GeneratorViewModelTest {
     fun generarSpviConRenuevaIgnoradaAvisa() = runTest {
         val vm = vm(puerta = PuertaFake(solicitud = solSpvi(renueva = "id-ajeno")))
         vm.onRawChange("SPVIR1:AAAA")
+        vm.onTxClienteChange("TX-SPVI")
+        vm.onTxSmsChange("TX-SPVI")
         vm.setPaid(true)
         vm.generateLicense()
 
