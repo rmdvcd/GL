@@ -163,11 +163,18 @@ private fun LicenseDetail(item: Licencia) {
     Spacer(Modifier.height(8.dp))
     GlCard {
         MetaRow(stringResource(R.string.field_license_id), item.id)
+        val licenseCode = item.codigoCorto ?: item.licenciaObtenida
+        if (!licenseCode.isNullOrBlank()) {
+            MetaRow(stringResource(R.string.field_license_code), licenseCode)
+        }
         MetaRow(stringResource(R.string.field_name), "${item.firstName} ${item.lastName}")
         MetaRow(stringResource(R.string.field_national_id), item.nationalId)
         MetaRow(stringResource(R.string.field_phone), item.phone)
         MetaRow(stringResource(R.string.field_channel), item.channel.name)
         MetaRow(stringResource(R.string.field_device), item.deviceId)
+        if (item.dispositivo.isNotBlank()) {
+            MetaRow(stringResource(R.string.field_device_model), item.dispositivo)
+        }
         MetaRow(stringResource(R.string.field_app), item.appName)
     }
     Spacer(Modifier.height(GlDimens.gap))
@@ -182,6 +189,9 @@ private fun LicenseDetail(item: Licencia) {
         }
         item.precioCobrado?.let {
             MetaRow(stringResource(R.string.license_price_charged), PrecioTabla.formatoPrecio(it))
+        }
+        item.periodoRestante?.let {
+            MetaRow(stringResource(R.string.field_accumulated_days), "+$it días")
         }
         MetaRow(
             stringResource(R.string.field_requested_at),

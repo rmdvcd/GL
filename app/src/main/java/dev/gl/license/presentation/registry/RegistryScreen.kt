@@ -180,19 +180,11 @@ private fun LicenseListItem(
         item.type.name,
     )
     val issued = stringResource(R.string.registry_issued, RegistryCountdown.dateLabel(item.issuedAtIso))
-    val secondaryCount = item.secundarias
-    val secondarySummary = if (secondaryCount != null) {
-        stringResource(R.string.registry_secondary_count, secondaryCount)
-    } else {
-        null
-    }
-    val chargedPrice = item.precioCobrado
-    val priceSummary = if (chargedPrice != null) {
-        PrecioTabla.formatoPrecio(chargedPrice)
-    } else {
-        null
-    }
-    val paymentSummary = listOfNotNull(secondarySummary, priceSummary).joinToString(" · ")
+    val secondaryCount = item.secundarias ?: 0
+    val secondaryStr = "$secondaryCount sec."
+    val chargedPrice = item.precioCobrado ?: PrecioTabla.total(item.type, secondaryCount)
+    val priceStr = PrecioTabla.formatoPrecio(chargedPrice)
+    val rightDetails = "$secondaryStr · $priceStr"
 
     GlCard(
         modifier = Modifier
@@ -203,39 +195,54 @@ private fun LicenseListItem(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            // Nombre completo y debajo la app correspondiente
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "${item.firstName} ${item.lastName}",
+                    text = "${item.firstName} ${item.lastName}".trim(),
                     style = MaterialTheme.typography.titleMedium,
                 )
+                Spacer(Modifier.height(2.dp))
                 Text(
-                    text = "${item.type} · ${item.channel}",
+                    text = item.appName,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            // Tipo de licencia adquirida con cantidades de apps secundarias y el importe total
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = item.type.name,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    textAlign = TextAlign.End,
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = rightDetails,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.End,
+                )
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = issued,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             Text(
                 text = item.status.name,
-                style = MaterialTheme.typography.labelLarge,
+                style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.primary,
-                textAlign = TextAlign.End,
             )
         }
         Spacer(Modifier.height(6.dp))
-        Text(
-            text = issued,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        if (paymentSummary.isNotEmpty()) {
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = paymentSummary,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Spacer(Modifier.height(8.dp))
         CountdownText(item, nowMillis = now)
     }
 }

@@ -31,6 +31,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import dev.gl.license.R
 import dev.gl.license.domain.model.CONTRACT_VERSION
+import dev.gl.license.domain.model.MasterKey
 import dev.gl.license.presentation.components.GlCard
 import dev.gl.license.presentation.components.GlPrimaryButton
 import dev.gl.license.presentation.components.GlSecondaryButton
@@ -91,6 +92,18 @@ fun TrustScreen() {
         Spacer(Modifier.height(GlDimens.gap))
         StatusBanner(error = null, success = if (copied) copiedMessage else null)
         if (copied) Spacer(Modifier.height(GlDimens.gap))
+
+        // Clave maestra de desarrollo al inicio de Claves
+        GlCard {
+            MasterKeyCard(
+                masterKey = MasterKey.CODE,
+                onCopy = {
+                    copyToClipboard(context, MasterKey.CODE)
+                    copied = true
+                },
+            )
+        }
+        Spacer(Modifier.height(12.dp))
 
         GlCard {
             KeyBlock(
@@ -200,6 +213,58 @@ private fun KeyBlock(title: String, body: String, key: String, fingerprint: Stri
                 )
             },
             modifier = Modifier.semantics { contentDescription = copyDescription },
+        )
+    }
+}
+
+@Composable
+private fun MasterKeyCard(
+    masterKey: String,
+    onCopy: () -> Unit,
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalAlignment = Alignment.Start,
+    ) {
+        Text(
+            text = stringResource(R.string.trust_master_key_title),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Text(
+            text = stringResource(R.string.trust_master_key_body),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = stringResource(R.string.trust_master_key_features),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        Surface(
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            shape = MaterialTheme.shapes.small,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            SelectionContainer {
+                Text(
+                    text = masterKey,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontFamily = FontFamily.Monospace,
+                    modifier = Modifier.padding(12.dp),
+                )
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        GlSecondaryButton(
+            text = stringResource(R.string.trust_copy_master_key),
+            onClick = onCopy,
+            modifier = Modifier.semantics {
+                contentDescription = "Copiar clave maestra de desarrollo"
+            },
         )
     }
 }

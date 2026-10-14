@@ -30,6 +30,7 @@ data class LicenseEntity(
     val codigoCorto: String? = null,
     val nonce: String,
     val version: Int,
+    val txNumber: String? = null,
 )
 
 @Dao
@@ -42,6 +43,9 @@ interface LicenseDao {
 
     @Query("SELECT * FROM licenses WHERE id = :id LIMIT 1")
     suspend fun byId(id: String): LicenseEntity?
+
+    @Query("SELECT COUNT(*) FROM licenses WHERE txNumber = :txNumber AND txNumber IS NOT NULL AND txNumber != ''")
+    suspend fun countByTxNumber(txNumber: String): Int
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: LicenseEntity)
@@ -81,7 +85,7 @@ interface ContactMethodDao {
 
 @Database(
     entities = [LicenseEntity::class, ContactMethodEntity::class],
-    version = 5,
+    version = 6,
     exportSchema = true,
 )
 abstract class GlDatabase : RoomDatabase() {

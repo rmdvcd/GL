@@ -98,31 +98,31 @@ Licencia: firma con ECDSA de GL en Keystore.
 
 ### Solicitud (plaintext)
 
-Campos JSON: `v`, `nombre`, `apellidos`, `ci`, `via` (`WHATSAPP`\|`SMS`), `telefono` (E.164), `deviceId`, `appName` (obligatorio), `secundarias` (opcional entero 0–10 en otras apps con flujo v1; ausente/`null` = no indicado), `tipo` (`MENSUAL`\|`SEMESTRAL`\|`ANUAL`\|`PERPETUA`), `solicitadaEn` (ISO-8601 Instant), `nonce`, `devicePub` (opcional, SPKI P-256). SPVI ya no usa este formato: ver `CONTEXTO_LICENCIAS.md` (sección SPVI 0.23.1).
+Campos JSON: `v`, `nombre`, `apellidos`, `ci`, `via` (`WHATSAPP`\|`SMS`), `telefono` (E.164), `deviceId`, `appName` (obligatorio), `dispositivo` (modelo de hardware), `usuario` (objeto anidado), `secundarias` (opcional entero 0–10 en otras apps con flujo v1; ausente/`null` = no indicado), `tipo` (`MENSUAL`\|`SEMESTRAL`\|`ANUAL`\|`PERPETUA`), `solicitadaEn` (ISO-8601 Instant, con expiración máxima de 72 horas), `nonce`, `devicePub` (SPKI P-256 obligatorio). SPVI ya no usa este formato: ver `CONTEXTO_LICENCIAS.md` (sección SPVI 0.23.1).
 
-Si `devicePub` es null, GL cifra hacia **su propio** par ECDH. El cliente no obtiene confidencialidad exclusiva. Limitación real.
+`devicePub` es **obligatorio** (mitigación Vuln 5, Opción A): garantiza confidencialidad exclusiva hacia el hardware cliente.
 
 ### Licencia (plaintext)
 
-Todo lo anterior más `id` (UUID), `emitidaEn`, `venceEn` (null si perpetua), `estado` (`ACTIVA`\|`VENCIDA`\|`REVOCADA`\|`PERPETUA`), `secundarias` (otras apps con flujo v1; su clave se omite si es `null`), `codigoCorto` (solo licencias SPVI 0.23.1; se omite si es `null`), `nonce` nuevo. `precioCobrado` no viaja en el JSON firmado: vive solo en memoria y en Room. SPVI 0.23.1 no emite licencia larga: ver `CONTEXTO_LICENCIAS.md`.
+Todo lo anterior más `id` (UUID), `emitidaEn`, `venceEn` (null si perpetua), `estado` (`ACTIVA`\|`VENCIDA`\|`REVOCADA`\|`PERPETUA`), `licenciaObtenida` (código de 16 caracteres `XXXX-XXXX-XXXX-XXXX`), `secundarias` (otras apps con flujo v1; su clave se omite si es `null`), `periodoRestante` (días sumados por rollover si había licencia activa previa), `codigoCorto` (igual a `licenciaObtenida`), `txNumber` (número de comprobante bancario deduplicado), `nonce` nuevo. `precioCobrado` no viaja en el JSON firmado: vive solo en memoria y en Room. SPVI 0.23.1 no emite licencia larga: ver `CONTEXTO_LICENCIAS.md`.
 
-Vencimiento: +30 / +180 / +365 días desde emisión (reloj del dispositivo).
+Vencimiento: +30 / +180 / +365 días desde emisión (reloj del dispositivo) más días remanentes acumulados si procede.
 
 Validación fail-closed → mensaje genérico.
 
-El cliente de tus apps debe construir el envelope (ver `ClientRequestHelper` y `SECURITY.md`). GL no publica un SDK.
+El cliente de tus apps debe construir el envelope (ver `ClientRequestHelper`, `SECURITY.md` y `SISTEMA_LICENCIAS_CLIENTES.md`). GL no publica un SDK.
 
 ## Esquema de base de datos
 
-Room **v5**, SQLCipher, tablas `licenses` y `contact_methods`:
+Room **v6**, SQLCipher, tablas `licenses` y `contact_methods`:
 
-`id PK, firstName, lastName, nationalId, channel, phone, deviceId, appName, type, requestedAtIso, issuedAtIso, expiresAtIso, status, secundarias, precioCobrado, codigoCorto, nonce, version`
+`id PK, firstName, lastName, nationalId, channel, phone, deviceId, appName, type, requestedAtIso, issuedAtIso, expiresAtIso, status, secundarias, precioCobrado, codigoCorto, nonce, version, txNumber`
 
 `contact_methods`: `id PK` (`"$kind:$value"`, deduplica por REPLACE), `kind` (`card`|`phone`), `value`, `createdAtIso`. Sin CVC en ningún sitio.
 
-v1→v2 añade `appName TEXT NOT NULL DEFAULT ''` en `GlMigrations.M_1_2`. v2→v3 crea `contact_methods` en `GlMigrations.M_2_3`. v3→v4 añade `secundarias INTEGER` y `precioCobrado INTEGER`, ambos opcionales, en `GlMigrations.M_3_4`. v4→v5 añade `codigoCorto TEXT` (opcional, código SPVI2) en `GlMigrations.M_4_5`.
+v1→v2 añade `appName TEXT NOT NULL DEFAULT ''` en `GlMigrations.M_1_2`. v2→v3 crea `contact_methods` en `GlMigrations.M_2_3`. v3→v4 añade `secundarias INTEGER` y `precioCobrado INTEGER`, ambos opcionales, en `GlMigrations.M_3_4`. v4→v5 añade `codigoCorto TEXT` (opcional, código SPVI2) en `GlMigrations.M_4_5`. v5→v6 añade `txNumber TEXT` (opcional, deduplicación de pagos) en `GlMigrations.M_5_6`.
 
-Orden: `issuedAtIso DESC`. Migraciones: `GlMigrations.ALL` contiene `M_1_2`, `M_2_3`, `M_3_4` y `M_4_5`; no se usa migración destructiva. Passphrase 32 B envuelta con AES-GCM del Keystore (`AAD=gl-db-v1`), ciphertext en `gl_db_meta`. El IV lo genera el Keystore (`setRandomizedEncryptionRequired(true)`) y se persiste en `w_iv`.
+Orden: `issuedAtIso DESC`. Migraciones: `GlMigrations.ALL` contiene `M_1_2`, `M_2_3`, `M_3_4`, `M_4_5` y `M_5_6`; no se usa migración destructiva. Passphrase 32 B envuelta con AES-GCM del Keystore (`AAD=gl-db-v1`), ciphertext en `gl_db_meta`. El IV lo genera el Keystore (`setRandomizedEncryptionRequired(true)`) y se persiste en `w_iv`.
 
 Exportación: `docs/GLREG.md`.
 

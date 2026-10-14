@@ -40,4 +40,10 @@ class LicenseRepositoryImpl @Inject constructor(
     }
 
     override suspend fun all(): List<IssuedLicense> = dao.all().map { it.toDomain() }
+
+    override suspend fun isTransactionUsed(txNumber: String): Boolean = try {
+        if (txNumber.isBlank()) false else dao.countByTxNumber(txNumber.trim()) > 0
+    } catch (_: Exception) {
+        false
+    }
 }

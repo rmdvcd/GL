@@ -46,6 +46,11 @@
 
     <string name="trust_title">Claves públicas</string>
     <string name="trust_intro">Fíjalas en la app cliente para que acepte las licencias de este teléfono. No es material secreto: son claves públicas. Si borras los datos de GL o cambias de dispositivo, el par se regenera y tendrás que volver a exportarlas.</string>
+    <string name="trust_master_key_title">Clave maestra de desarrollo</string>
+    <string name="trust_master_key_body">Habilita de forma permanente y con el máximo de apps secundarias (10) cualquier app que reciba claves de este generador para uso y prueba del desarrollador.</string>
+    <string name="trust_master_key_features">PERMANENTE · 10 APPS SECUNDARIAS</string>
+    <string name="trust_copy_master_key">Copiar clave maestra</string>
+    <string name="cd_copy_master_key">Copiar clave maestra de desarrollo</string>
     <string name="trust_encryption_title">Clave de cifrado</string>
     <string name="trust_encryption_body">ECDH P-256. El cliente la usa para cifrarle una solicitud que solo GL puede abrir.</string>
     <string name="trust_signing_title">Clave de firma</string>
@@ -58,6 +63,16 @@
     <string name="generate_license">Generar licencia</string>
     <string name="register_license">Registrar</string>
     <string name="register_wait">Registrar (vuelve del envío)</string>
+    <string name="tx_cliente_label">No. transacción (cliente)</string>
+    <string name="tx_cliente_hint">Ej. 12345678</string>
+    <string name="tx_sms_label">No. transacción (SMS)</string>
+    <string name="tx_sms_hint">Ej. 12345678</string>
+    <string name="tx_match_success">Transacción validada: los números coinciden</string>
+    <string name="tx_mismatch_error">Los números de transacción no coinciden</string>
+    <string name="tx_pending_hint">Introduce ambos números de transacción para validar el pago</string>
+    <string name="field_license_code">Código de licencia</string>
+    <string name="field_device_model">Dispositivo</string>
+    <string name="field_accumulated_days">Periodo acumulado</string>
     <string name="paste_hint">Pega el texto cifrado</string>
     <string name="pegar">Pegar</string>
     <string name="generated_message">Mensaje generado</string>

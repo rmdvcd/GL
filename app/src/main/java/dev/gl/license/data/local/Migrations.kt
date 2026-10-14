@@ -50,5 +50,12 @@ object GlMigrations {
         }
     }
 
-    val ALL: Array<Migration> = arrayOf(M_1_2, M_2_3, M_3_4, M_4_5)
+    /** v5→v6: txNumber opcional para deduplicación de pagos. Sin valores previos que migrar. */
+    val M_5_6 = object : Migration(5, 6) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE licenses ADD COLUMN txNumber TEXT")
+        }
+    }
+
+    val ALL: Array<Migration> = arrayOf(M_1_2, M_2_3, M_3_4, M_4_5, M_5_6)
 }

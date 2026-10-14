@@ -23,6 +23,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
+private const val TEST_PUB_KEY = "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEq+BkCJzxNvUEV6J0XQyY0g71EvOfZ87syGdhURoMlOdgWFlEVs2aDxsGlia4Df+ZS6LPE6dmfCpCGZhSoC6J1Q=="
+
 internal fun req() = SolicitudLicencia(
     version = CONTRACT_VERSION,
     firstName = "Ana",
@@ -35,6 +37,7 @@ internal fun req() = SolicitudLicencia(
     type = TipoLicencia.MENSUAL,
     requestedAtIso = "2026-01-01T00:00:00Z",
     nonce = "AAAAAAAAAAAAAAAAAAAAAA==",
+    devicePublicKeyPem = TEST_PUB_KEY,
 )
 
 internal class MemLic : LicenciaRepository {
@@ -57,6 +60,8 @@ internal class MemLic : LicenciaRepository {
         pub(); return Outcome.Ok(n)
     }
     override suspend fun all() = map.values.toList()
+    override suspend fun isTransactionUsed(txNumber: String): Boolean =
+        map.values.any { it.txNumber != null && it.txNumber.equals(txNumber.trim(), ignoreCase = true) }
 }
 
 internal class MemReg : RegistroRepository {
@@ -155,5 +160,21 @@ class DomainLayerTest {
         val n = (imp(bytes) as Outcome.Ok).value
         assertThat(n).isEqualTo(1)
         assertThat(lic2.getById("id-1")).isNotNull()
+    }
+
+    @Test
+    fun generarRechazaTransaccionDuplicada() = runTest {
+        val lic = MemLic()
+        val seg = MemSeg()
+        val uc = GenerarLicenciaUseCase(seg, FixedClock, lic)
+        val r1 = uc(req(), true, txNumber = "TX999")
+        assertThat(r1).isInstanceOf(Outcome.Ok::class.java)
+        val l1 = (r1 as Outcome.Ok).value.first
+        lic.upsert(l1)
+
+        val r2 = uc(req(), true, txNumber = "TX999")
+        assertThat(r2).isInstanceOf(Outcome.Err::class.java)
+        assertThat((r2 as Outcome.Err).error)
+            .isEqualTo(dev.gl.license.core.AppError.TransactionAlreadyUsed("TX999"))
     }
 }

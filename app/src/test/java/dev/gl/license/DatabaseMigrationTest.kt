@@ -235,6 +235,32 @@ class DatabaseMigrationTest {
         helper.close()
     }
 
+    @Test
+    fun v5_to_6_addsNullableTxNumberAndKeepsRows() {
+        val helper = openV5()
+        helper.writableDatabase.use { db ->
+            db.execSQL(INSERT_LICENSE_V5)
+            GlMigrations.M_5_6.migrate(db)
+
+            assertThat(columnNames(db)).contains("txNumber")
+            assertThat(notNullColumns(db, "licenses")).doesNotContain("txNumber")
+
+            // La fila previa sobrevive sin txNumber.
+            db.query("SELECT id, txNumber FROM licenses WHERE id = 'w'").use { c ->
+                assertThat(c.moveToFirst()).isTrue()
+                assertThat(c.isNull(1)).isTrue()
+            }
+
+            // La columna nueva acepta el número de transacción.
+            db.execSQL("UPDATE licenses SET txNumber = 'TX123456789' WHERE id = 'w'")
+            db.query("SELECT txNumber FROM licenses WHERE id = 'w'").use { c ->
+                assertThat(c.moveToFirst()).isTrue()
+                assertThat(c.getString(0)).isEqualTo("TX123456789")
+            }
+        }
+        helper.close()
+    }
+
     private fun openV4(): SupportSQLiteOpenHelper =
         FrameworkSQLiteOpenHelperFactory().create(
             SupportSQLiteOpenHelper.Configuration.builder(
@@ -244,6 +270,27 @@ class DatabaseMigrationTest {
                 .callback(object : SupportSQLiteOpenHelper.Callback(4) {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         db.execSQL(V4_LICENSES_DDL)
+                        db.execSQL(V3_CONTACT_METHODS_DDL)
+                    }
+
+                    override fun onUpgrade(
+                        db: SupportSQLiteDatabase,
+                        oldVersion: Int,
+                        newVersion: Int,
+                    ) = Unit
+                })
+                .build()
+        )
+
+    private fun openV5(): SupportSQLiteOpenHelper =
+        FrameworkSQLiteOpenHelperFactory().create(
+            SupportSQLiteOpenHelper.Configuration.builder(
+                RuntimeEnvironment.getApplication(),
+            )
+                .name(null)
+                .callback(object : SupportSQLiteOpenHelper.Callback(5) {
+                    override fun onCreate(db: SupportSQLiteDatabase) {
+                        db.execSQL(V5_LICENSES_DDL)
                         db.execSQL(V3_CONTACT_METHODS_DDL)
                     }
 
@@ -329,5 +376,23 @@ class DatabaseMigrationTest {
                 "'85010112345','WHATSAPP','+5352345678','SPVI:golden0000000001','SPVI','MENSUAL'," +
                 "'2026-10-03T19:00:00Z','2026-10-03T20:00:00Z','2026-11-02T20:00:00Z','ACTIVA'," +
                 "2,8000,'AAAAAAAAAAAAAAAAAAAAAA==',2)"
+
+        /** v4 más codigoCorto que añade M_4_5. Copiado de 5.json. */
+        const val V5_LICENSES_DDL =
+            "CREATE TABLE IF NOT EXISTS `licenses` (`id` TEXT NOT NULL, `firstName` TEXT NOT NULL, " +
+                "`lastName` TEXT NOT NULL, `nationalId` TEXT NOT NULL, `channel` TEXT NOT NULL, " +
+                "`phone` TEXT NOT NULL, `deviceId` TEXT NOT NULL, `appName` TEXT NOT NULL, " +
+                "`type` TEXT NOT NULL, `requestedAtIso` TEXT NOT NULL, `issuedAtIso` TEXT NOT NULL, " +
+                "`expiresAtIso` TEXT, `status` TEXT NOT NULL, `secundarias` INTEGER, " +
+                "`precioCobrado` INTEGER, `codigoCorto` TEXT, `nonce` TEXT NOT NULL, " +
+                "`version` INTEGER NOT NULL, PRIMARY KEY(`id`))"
+
+        const val INSERT_LICENSE_V5 =
+            "INSERT INTO licenses (id, firstName, lastName, nationalId, channel, phone, " +
+                "deviceId, appName, type, requestedAtIso, issuedAtIso, expiresAtIso, status, " +
+                "secundarias, precioCobrado, codigoCorto, nonce, version) VALUES ('w','Maria','Perez Gonzalez'," +
+                "'85010112345','WHATSAPP','+5352345678','SPVI:golden0000000001','SPVI','MENSUAL'," +
+                "'2026-10-03T19:00:00Z','2026-10-03T20:00:00Z','2026-11-02T20:00:00Z','ACTIVA'," +
+                "2,8000,'ABCD-EFGH-IJKL-MNOP','AAAAAAAAAAAAAAAAAAAAAA==',2)"
     }
 }
