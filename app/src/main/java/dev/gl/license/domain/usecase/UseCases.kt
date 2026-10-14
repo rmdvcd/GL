@@ -121,7 +121,7 @@ class GenerarLicenciaUseCase @Inject constructor(
                 telefono = req.effectivePhone.trim(),
                 via = req.effectiveChannel,
             ),
-            tipo = req.type,
+            type = req.type,
             licenciaObtenida = codigoLicencia,
             secundarias = effectiveSecundarias,
             periodoRestante = if (diasAdicionales > 0) diasAdicionales else null,

@@ -112,7 +112,7 @@ class EvaluarSolicitudHistorialUseCase @Inject constructor(
         if (activa != null) {
             if (activa.type == TipoLicencia.PERPETUA || activa.status == EstadoLicencia.PERPETUA) {
                 return EvaluacionHistorial.RechazadaYaPerpetua(
-                    activa = activa,
+                    perpetua = activa,
                     error = "El usuario ya cuenta con una licencia perpetua activa.",
                 )
             }

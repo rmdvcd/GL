@@ -8,6 +8,7 @@ import dev.gl.license.domain.model.Licencia
 import dev.gl.license.domain.model.Secundarias
 import dev.gl.license.domain.model.SolicitudLicencia
 import dev.gl.license.domain.model.TipoLicencia
+import dev.gl.license.security.CryptoEngine
 import java.time.Instant
 import java.time.format.DateTimeParseException
 

@@ -81,7 +81,7 @@ object ClientRequestHelper {
                 telefono = telefono,
                 via = via,
             ),
-            tipo = tipo,
+            type = tipo,
             secundarias = secundarias,
             requestedAtIso = nowIso,
             nonce = nonce,
