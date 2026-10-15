@@ -39,6 +39,16 @@ class RegistryViewModel @Inject constructor(
         }
     }
 
+    fun importRejected() {
+        _ui.update {
+            it.copy(
+                loading = false,
+                message = null,
+                error = "Archivo ilegible o demasiado grande (límite: 32 MiB).",
+            )
+        }
+    }
+
     fun importBytes(bytes: ByteArray) {
         viewModelScope.launch {
             _ui.update { it.copy(loading = true, error = null, message = null) }

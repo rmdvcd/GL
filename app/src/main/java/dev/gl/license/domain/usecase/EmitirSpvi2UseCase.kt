@@ -36,10 +36,42 @@ class EmitirSpvi2UseCase @Inject constructor(
     suspend operator fun invoke(
         sol: SolicitudSpviV2,
         pagoConfirmado: Boolean,
+        txNumber: String? = null,
         idFactory: () -> String = { UUID.randomUUID().toString() },
     ): Outcome<SpviEmitida> {
         if (!pagoConfirmado) return Outcome.Err(AppError.InvalidPayload)
-        val ahoraSec = clock.nowEpochMillis() / 1_000L
+        when (val valid = Spvi23.validarSolicitud(sol)) {
+            is Outcome.Err -> return valid
+            is Outcome.Ok -> Unit
+        }
+        val ahora = try {
+            Instant.parse(clock.nowIso())
+        } catch (_: Exception) {
+            return Outcome.Err(AppError.ClockFailure)
+        }
+        val requestedAt = try {
+            Instant.parse(sol.solicitadaEn)
+        } catch (_: Exception) {
+            return Outcome.Err(AppError.InvalidPayload)
+        }
+        if (!RequestFreshness.accepts(requestedAt, ahora)) {
+            return Outcome.Err(AppError.RequestExpired)
+        }
+        val cleanTx = txNumber?.trim()?.takeIf { it.isNotEmpty() }
+        if (cleanTx != null) {
+            if (cleanTx.length > 128 || cleanTx.any { it.isISOControl() }) {
+                return Outcome.Err(AppError.InvalidPayload)
+            }
+            val used = try {
+                licencias.isTransactionUsed(cleanTx)
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                return Outcome.Err(AppError.RegistryFailure)
+            }
+            if (used) return Outcome.Err(AppError.TransactionAlreadyUsed(cleanTx))
+        }
+        val ahoraSec = ahora.epochSecond
         val dias = sol.tipo.days()
         val prev = sol.renueva?.let { licencias.getById(it) }
         val aplicaRenueva = prev != null &&
@@ -73,6 +105,7 @@ class EmitirSpvi2UseCase @Inject constructor(
             precioCobrado = PrecioTabla.total(sol.tipo, sol.secundarias),
             codigoCorto = null,
             nonce = CryptoEngine.b64(CryptoEngine.randomBytes(16)),
+            txNumber = cleanTx,
         )
         val devicePub33 = try {
             Spvi23.b64urlD(sol.devicePub)

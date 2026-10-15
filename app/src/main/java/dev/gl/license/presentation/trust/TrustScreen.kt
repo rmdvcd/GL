@@ -29,6 +29,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import dev.gl.license.BuildConfig
 import dev.gl.license.R
 import dev.gl.license.domain.model.CONTRACT_VERSION
 import dev.gl.license.domain.model.MasterKey
@@ -93,17 +94,19 @@ fun TrustScreen() {
         StatusBanner(error = null, success = if (copied) copiedMessage else null)
         if (copied) Spacer(Modifier.height(GlDimens.gap))
 
-        // Clave maestra de desarrollo al inicio de Claves
-        GlCard {
-            MasterKeyCard(
-                masterKey = MasterKey.CODE,
-                onCopy = {
-                    copyToClipboard(context, MasterKey.CODE)
-                    copied = true
-                },
-            )
+        // No incluir ni exponer el código de desarrollo en builds release.
+        if (BuildConfig.DEBUG) {
+            GlCard {
+                MasterKeyCard(
+                    masterKey = MasterKey.CODE,
+                    onCopy = {
+                        copyToClipboard(context, MasterKey.CODE)
+                        copied = true
+                    },
+                )
+            }
+            Spacer(Modifier.height(12.dp))
         }
-        Spacer(Modifier.height(12.dp))
 
         GlCard {
             KeyBlock(
@@ -111,6 +114,7 @@ fun TrustScreen() {
                 body = stringResource(R.string.trust_encryption_body),
                 key = encryptionKey,
                 fingerprint = encryptionFp,
+                isSigningKey = false,
             )
         }
         Spacer(Modifier.height(12.dp))
@@ -120,6 +124,7 @@ fun TrustScreen() {
                 body = stringResource(R.string.trust_signing_body),
                 key = signingKey,
                 fingerprint = signingFp,
+                isSigningKey = true,
             )
         }
 
@@ -137,7 +142,13 @@ fun TrustScreen() {
 }
 
 @Composable
-private fun KeyBlock(title: String, body: String, key: String, fingerprint: String) {
+private fun KeyBlock(
+    title: String,
+    body: String,
+    key: String,
+    fingerprint: String,
+    isSigningKey: Boolean,
+) {
     Column(
         verticalArrangement = Arrangement.spacedBy(6.dp),
         horizontalAlignment = Alignment.Start,
@@ -204,10 +215,10 @@ private fun KeyBlock(title: String, body: String, key: String, fingerprint: Stri
                 copyToClipboard(
                     context,
                     PublicKeyBundle.clipboardPayload(
-                        encryptionKey = key,
-                        signingKey = "",
-                        encryptionFingerprint = fingerprint,
-                        signingFingerprint = "",
+                        encryptionKey = if (isSigningKey) "" else key,
+                        signingKey = if (isSigningKey) key else "",
+                        encryptionFingerprint = if (isSigningKey) "" else fingerprint,
+                        signingFingerprint = if (isSigningKey) fingerprint else "",
                         contractVersion = CONTRACT_VERSION,
                     ),
                 )

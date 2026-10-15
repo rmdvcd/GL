@@ -58,16 +58,16 @@ object FieldValidator {
         } catch (_: DateTimeParseException) {
             return Outcome.Err(AppError.InvalidPayload)
         }
-        if (now != null) {
-            val diffHours = java.time.temporal.ChronoUnit.HOURS.between(reqInstant, now)
-            if (diffHours > 72 || diffHours < -2) {
-                return Outcome.Err(AppError.RequestExpired)
-            }
+        if (now != null && !RequestFreshness.accepts(reqInstant, now)) {
+            return Outcome.Err(AppError.RequestExpired)
         }
         return Outcome.Ok(r)
     }
 
     fun validateLicense(l: Licencia): Outcome<Licencia> {
+        if (l.txNumber?.let { it.length > 128 || it.any { c -> c.isISOControl() } } == true) {
+            return Outcome.Err(AppError.InvalidPayload)
+        }
         if (l.version == 2) return validateLicenseV2(l)
         val asReq = SolicitudLicencia(
             version = l.version,

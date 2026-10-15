@@ -16,7 +16,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
 class RenovacionSpviTest {
-    private val ahoraSec = 1_735_689_600L // FixedClock: 2026-01-01T00:00:00Z
+    private val ahoraSec = 1_767_225_600L // FixedClock: 2026-01-01T00:00:00Z
 
     private val dispositivo = CryptoEngine.generateEphemeralP256()
     private val firma = CryptoEngine.generateEphemeralP256()
@@ -84,12 +84,16 @@ class RenovacionSpviTest {
         nonce = "AAAAAAAAAAAAAAAAAAAAAA==",
     )
 
-    private suspend fun emitir(solicitud: SolicitudSpviV2, licencias: MemLic = MemLic()) =
-        EmitirSpvi2UseCase(puerta, licencias, FixedClock)(
-            solicitud,
-            pagoConfirmado = true,
-            idFactory = { "7c9e6679-7425-40de-944b-e07fc1f90ae7" },
-        )
+    private suspend fun emitir(
+        solicitud: SolicitudSpviV2,
+        licencias: MemLic = MemLic(),
+        txNumber: String? = null,
+    ) = EmitirSpvi2UseCase(puerta, licencias, FixedClock)(
+        solicitud,
+        pagoConfirmado = true,
+        txNumber = txNumber,
+        idFactory = { "7c9e6679-7425-40de-944b-e07fc1f90ae7" },
+    )
 
     @Test
     fun anteriorVigenteSumaDuracionSobreSuVencimiento() = runTest {
@@ -137,5 +141,31 @@ class RenovacionSpviTest {
         assertThat(r.value.renuevaIgnorada).isTrue()
         assertThat(r.value.licencia.expiresAtIso)
             .isEqualTo(Instant.ofEpochSecond(ahoraSec + 30 * 86_400L).toString())
+    }
+
+    @Test
+    fun rechazaSolicitudSpviCaducadaOFutura() = runTest {
+        val caducada = emitir(sol().copy(solicitadaEn = "2025-12-28T00:00:00Z")) as Outcome.Err
+        val futura = emitir(sol().copy(solicitadaEn = "2026-01-01T03:00:01Z")) as Outcome.Err
+
+        assertThat(caducada.error).isEqualTo(AppError.RequestExpired)
+        assertThat(futura.error).isEqualTo(AppError.RequestExpired)
+    }
+
+    @Test
+    fun rechazaNumeroDeTransaccionYaUsadoSinDistinguirMayusculas() = runTest {
+        val licencias = MemLic()
+        licencias.upsert(anterior("previa", venceSec = ahoraSec + 5 * 86_400L).copy(txNumber = "TX-USED"))
+
+        val result = emitir(sol(), licencias, txNumber = "tx-used") as Outcome.Err
+
+        assertThat(result.error).isEqualTo(AppError.TransactionAlreadyUsed("tx-used"))
+    }
+
+    @Test
+    fun conservaTransaccionEnLicenciaSpvi() = runTest {
+        val result = emitir(sol(), MemLic(), txNumber = "TX-SPVI") as Outcome.Ok
+
+        assertThat(result.value.licencia.txNumber).isEqualTo("TX-SPVI")
     }
 }

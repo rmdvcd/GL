@@ -21,17 +21,16 @@ object KeystoreManager {
     const val ALIAS_MASTER_AES = "gl.master.aes.v1"
     const val ALIAS_SIGN_EC = "gl.sign.ec.p256.v1"
     const val ALIAS_ECDH = "gl.ecdh.p256.v1"
-    const val ALIAS_BIOMETRIC = "gl.bio.aes.v1"
 
     private fun ks(): KeyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
 
-    fun getOrCreateAes(alias: String = ALIAS_MASTER_AES, requireAuth: Boolean = false): SecretKey {
+    fun getOrCreateAes(alias: String = ALIAS_MASTER_AES): SecretKey {
         val store = ks()
         (store.getKey(alias, null) as? SecretKey)?.let { return it }
-        return generateAes(alias, requireAuth, tryStrongBox = true)
+        return generateAes(alias, tryStrongBox = true)
     }
 
-    private fun generateAes(alias: String, requireAuth: Boolean, tryStrongBox: Boolean): SecretKey {
+    private fun generateAes(alias: String, tryStrongBox: Boolean): SecretKey {
         val builder = KeyGenParameterSpec.Builder(
             alias,
             KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
@@ -40,23 +39,16 @@ object KeystoreManager {
             .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
             .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
             .setRandomizedEncryptionRequired(true)
-            .setUserAuthenticationRequired(requireAuth)
         applyCommon(builder, tryStrongBox)
-        if (requireAuth && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            builder.setUserAuthenticationParameters(
-                0,
-                KeyProperties.AUTH_BIOMETRIC_STRONG or KeyProperties.AUTH_DEVICE_CREDENTIAL
-            )
-        }
         val gen = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE)
         return try {
             gen.init(builder.build())
             gen.generateKey()
         } catch (_: StrongBoxUnavailableException) {
-            generateAes(alias, requireAuth, tryStrongBox = false)
+            generateAes(alias, tryStrongBox = false)
         } catch (_: Exception) {
             if (tryStrongBox && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                generateAes(alias, requireAuth, tryStrongBox = false)
+                generateAes(alias, tryStrongBox = false)
             } else {
                 error("keystore-aes")
             }
@@ -105,8 +97,6 @@ object KeystoreManager {
         }
         return getOrCreateEc(ALIAS_ECDH, purposes)
     }
-
-    fun biometricAes(): SecretKey = getOrCreateAes(ALIAS_BIOMETRIC, requireAuth = true)
 
     private fun applyCommon(builder: KeyGenParameterSpec.Builder, tryStrongBox: Boolean) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {

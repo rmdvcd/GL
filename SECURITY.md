@@ -14,15 +14,15 @@ Objetivo: que un dump de almacenamiento o un backup no entregue el registro en c
 |-----|-------------------|
 | Datos en reposo (Room) | SQLCipher; passphrase 32 B aleatorios envueltos AES-256-GCM (Keystore), AAD `gl-db-v1` |
 | Envelope ida/vuelta | ECDH P-256 → HKDF-SHA256 (`gl-req-v1` / `gl-lic-v1`) → AES-256-GCM + ECDSA P-256 sobre `epk\|\|iv\|\|ct\|\|tag` |
-| `.glreg` | AES-256-GCM AAD `glreg-v1` + ECDSA; magia `GLRG` |
+| `.glreg` | Formato local v2: AES-256-GCM AAD `glreg-v2` + ECDSA; se importan paquetes legacy v1 con AAD `glreg-v1` |
 | Firma app | Par EC Keystore alias `gl.sign.ec.p256.v1` |
 | ECDH estático GL | alias `gl.ecdh.p256.v1` |
 | Master AES | alias `gl.master.aes.v1` |
 | Primitivas puras | `CryptoEngine` expone `pbkdf2HmacSha256` y `constantTimeEquals` genéricos, sin Android Keystore, para poder testear en JVM |
 
-`kid` = `gl-sign-v1` es **nombre**, no secreto.
+`kid` = `gl-sign-v1` es **nombre**, no secreto. En envelopes v1, AAD = `CryptoEngine.canonical(listOf(v, alg, epkBase64, kid))` para solicitud y `canonical(listOf(v, alg, licenseId))` para licencia. Cada campo UTF-8 lleva longitud de 4 bytes big-endian; no se concatena con `|`.
 
-StrongBox (API 28+): se pide al generar; `StrongBoxUnavailableException` → TEE.
+StrongBox (API 28+): se pide al generar; `StrongBoxUnavailableException` → TEE. Esto no es una atestación de hardware.
 
 ### IV generado por el Keystore
 
@@ -32,35 +32,38 @@ No se puede detectar este caso por `SecretKey.getFormat()`: en Android devuelve 
 
 ## Gestión de claves
 
-- No hay claves en código, assets ni BuildConfig.
-- Material de Keystore no se exporta.
+- No hay claves **privadas** de criptografía en código, assets ni `BuildConfig`. La clave maestra de desarrollo es una credencial de prueba pública: el literal solo se genera en `BuildConfig` de debug, en release queda vacío, y no debe tratarse como secreto.
+- Material privado del Android Keystore no se exporta.
 - `.glreg` se cifra con la AES master del **mismo** dispositivo y se firma con el par local: **no es portable**.
 - Sin autenticación de usuario en las claves: la passphrase de la BD se puede descifrar mientras la app está abierta. Ver *Consecuencia* abajo.
 
 ## Consecuencia de haber retirado la autenticación
 
-Ya no hay PIN ni biometría. La app abre directo al Generador y `FLAG_SECURE` sigue activo, pero **cualquiera con el teléfono desbloqueado entra al registro de licencias sin ninguna credencial**. Lo que protege el registro es exclusivamente el cifrado en reposo (SQLCipher) y la atestación del Keystore al `.glreg`, no un gate de sesión. Para un teléfono compartido o con acceso físico frecuente, esto es insuficiente.
+Ya no hay PIN ni biometría. La app abre directo al Generador y `FLAG_SECURE` sigue activo, pero **cualquiera con el teléfono desbloqueado entra al registro de licencias sin ninguna credencial**. Lo que protege el registro es el cifrado en reposo (SQLCipher) y la firma del paquete `.glreg` con una clave local de Android Keystore; eso no es atestación de hardware ni un gate de sesión. Para un teléfono compartido o con acceso físico frecuente, esto es insuficiente.
 
-## Auditoría de Seguridad: 8 Vulnerabilidades y Remediaciones (Opción A)
+## Estado de las correcciones de seguridad (2026-10-14)
 
-En la auditoría del sistema de licencias se identificaron 8 vectores de vulnerabilidad. Se ha aplicado e integrado formalmente la **Opción A** en todos los componentes del emisor y en las especificaciones para clientes:
+Las notas siguientes describen el código de este repositorio, no las aplicaciones cliente externas:
 
-1. **Vulnerabilidad 1 — Exposición de Master Key en Producción:**
-   - *Mitigación:* La validación de la Master Key `GLMK-PERM-MAXS-9999` está restringida exclusivamente a builds `DEBUG` (`BuildConfig.DEBUG`). En builds de release o producción, `isMasterKey` siempre devuelve `false`.
-2. **Vulnerabilidad 2 — Reutilización de Transacciones Bancarias:**
-   - *Mitigación:* Almacenamiento e indexación del campo `txNumber` en la base de datos SQLCipher. `GenerarLicenciaUseCase` y `GeneratorViewModel` verifican la unicidad del número de transacción y rechazan transacciones duplicadas con `AppError.TransactionAlreadyUsed`.
-3. **Vulnerabilidad 3 — Ataque de Retraso de Reloj (Clock Rollback):**
-   - *Mitigación:* Las aplicaciones cliente mantienen una marca de agua monotónica persistente (`lastKnownTimestamp`). Si la hora del sistema retrocede respecto a la marca de agua, la app invalida la licencia.
-4. **Vulnerabilidad 4 — Clonación de `deviceId` / `devicePub`:**
-   - *Mitigación:* El par de claves del cliente se genera y custodia en `AndroidKeyStore` con respaldo en hardware (StrongBox o TEE), impidiendo la exportación de claves privadas y atando la licencia al chip físico.
-5. **Vulnerabilidad 5 — Omisión de `devicePub` en la Solicitud:**
-   - *Mitigación:* `devicePub` es ahora un campo estrictamente obligatorio en `FieldValidator.validateRequest`. Cualquier solicitud sin clave pública o con clave malformada se rechaza con `AppError.DevicePubRequired`.
-6. **Vulnerabilidad 6 — Replay Indefinido de Solicitudes:**
-   - *Mitigación:* Se valida la fecha `solicitadaEn` contra el reloj del emisor. Si la solicitud tiene más de 72 horas de antigüedad (o más de 2 horas en el futuro), se rechaza con `AppError.RequestExpired`.
-7. **Vulnerabilidad 7 — Cuota de Apps Secundarias sin Control Criptográfico:**
-   - *Mitigación:* Emisión y verificación de sub-tokens offline firmados con la clave primaria, validando el identificador del dispositivo secundario y el índice de cuota asignado.
-8. **Vulnerabilidad 8 — Inyección de Delimitadores en AAD:**
-   - *Mitigación:* Sustitución de concatenación con barras `|` por canonicalización con Length-Prefixing (longitud prefijada de 4 bytes en big-endian) en `CryptoEngine.canonical()`.
+### Corregido en el código
+
+- **Clave de desarrollo:** el valor se define solo en el `BuildConfig` debug; el campo release queda vacío, `TrustScreen` no muestra la tarjeta en release e `isMasterKey` falla cerrado por defecto. Sigue siendo una credencial pública de desarrollo, no un secreto.
+- **Helper v1:** deriva y cifra con el mismo IV; exige `devicePub` y comprueba que las claves EC recibidas usan parámetros P-256. Hay un test JVM de round-trip; el E2E Android continúa ignorado y no se declara validado.
+- **Entrada v1/SPVI:** límites de longitud antes del parseo, límites de tamaño en SPVI y archivo `.glreg`, comprobación de longitudes exactas y máximo de 10 000 entradas de backup.
+- **Frescura:** comparación exacta con ventana de 72 horas de antigüedad y 2 horas de adelanto, aplicada a v1 y antes de emitir SPVI.
+- **Transacciones:** consultas suspendidas y fail-closed si falla el almacenamiento; ambas rutas pasan y guardan `txNumber`. La consulta es insensible a mayúsculas.
+- **Backup:** `.glreg` preserva `precioCobrado` en metadatos separados del JSON de licencia y sigue importando el formato antiguo.
+- **Integridad de UI:** validaciones asíncronas descartan resultados obsoletos, se evita volver a emitir desde el mismo estado pendiente y la copia individual de clave rellena el campo correcto.
+- **Código muerto:** retirados permisos biométricos, alias/helper AES biométrico, errores de PIN/auth y dependencias directas no usadas de Biometric, Security Crypto y DataStore.
+
+### Limitaciones que siguen abiertas
+
+- **Replay:** el nonce de solicitud no se consume ni persiste. La ventana temporal no impide volver a presentar el mismo envelope y el reloj del emisor (`System.currentTimeMillis()`) puede retroceder. No hay watermark resistente a rollback en este APK.
+- **Reserva de pago:** `txNumber` se comprueba contra licencias ya registradas, pero no hay índice único ni reserva atómica; la licencia se registra después de compartirla. Una carrera o un cierre antes de registrar todavía puede permitir reuso. No se añadió una migración que destruya/reescriba posibles duplicados históricos.
+- **`devicePub`:** es obligatorio y se valida como EC P-256; no hay proof-of-possession, attestation ni vínculo comprobado con `deviceId`. El cliente debe proteger su clave privada.
+- **Android 26–30:** `KeystoreManager` usa `PURPOSE_SIGN | PURPOSE_VERIFY` para la clave ECDH en esas versiones; no se ha verificado un fallback de `KeyAgreement`. No se eleva `minSdk` sin decisión explícita.
+- **Cliente no incluido:** watermark de reloj, sub-tokens y verificación en runtime descritos en la guía son responsabilidad de las apps cliente y no están implementados por este APK.
+- **Validación pendiente:** en este entorno no se ejecutaron build, tests, lint ni pruebas en dispositivo. Hace falta un runner Android compatible para validar el E2E/Keystore/Room.
 
 ## Validación
 

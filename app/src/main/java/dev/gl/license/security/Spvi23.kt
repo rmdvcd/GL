@@ -68,11 +68,21 @@ object Spvi23 {
     private val ciRe = Regex("^[A-Za-z0-9]{5,20}$")
     private val nameRe = Regex("^[\\p{L} .'-]{2,80}$")
     private val deviceRe = Regex("^[A-Za-z0-9:_-]{8,128}$")
+    private val nonceRe = Regex("^[A-Za-z0-9+/=_-]{16,128}$")
+    private val devicePubRe = Regex("^[A-Za-z0-9_-]{44}$")
+    private val renewalIdRe = Regex("^[A-Za-z0-9._:-]{1,64}$")
+    private const val MAX_REQUEST_CODE_CHARS = 16_384
+    const val MAX_REQUEST_TEXT_CHARS = 16_512
+    private const val MAX_REQUEST_BYTES = 12_288
+    private const val SPVI_REQUEST_OVERHEAD_BYTES = 33 + 16
+    private const val MAX_REQUEST_PLAINTEXT_BYTES = MAX_REQUEST_BYTES - SPVI_REQUEST_OVERHEAD_BYTES
+    private const val MAX_LICENSE_CODE_CHARS = 256
 
-    fun contieneCodigo(raw: String): Boolean = raw.contains("SPVIR1:")
+    fun contieneCodigo(raw: String): Boolean = raw.length <= MAX_REQUEST_TEXT_CHARS && raw.contains("SPVIR1:")
 
     /** Extrae el Base64url tras `SPVIR1:`, ignorando blancos y parando en el primer otro carácter. */
     fun extraerCodigo(raw: String): Outcome<String> {
+        if (raw.length > MAX_REQUEST_TEXT_CHARS) return Outcome.Err(AppError.InvalidPayload)
         val i = raw.indexOf("SPVIR1:")
         if (i < 0) return Outcome.Err(AppError.SpviNoEs023)
         val sb = StringBuilder()
@@ -98,6 +108,7 @@ object Spvi23 {
         val iv = okm.copyOfRange(32, 44)
         val aad = "SPVI-R1|".toByteArray(Charsets.UTF_8) + epk
         val plano = jsonV2.encodeToString(SolicitudSpviV2.serializer(), dto).toByteArray(Charsets.UTF_8)
+        require(plano.size <= MAX_REQUEST_PLAINTEXT_BYTES) { "spvi-request-size" }
         val (_, ct, tag) = CryptoEngine.aesGcmEncrypt(key, plano, aad, iv)
         return b64urlE(epk + ct + tag)
     }
@@ -105,8 +116,12 @@ object Spvi23 {
     /** Descifra `epk(33)‖ct‖tag(16)` y valida el JSON v2. GCM o validación fallan → error, nunca lanza. */
     fun abrir(codigoB64: String, ecdhPrivada: PrivateKey): Outcome<SolicitudSpviV2> {
         return try {
-            val raw = b64urlD(codigoB64.trim())
-            if (raw.size < 50) return Outcome.Err(AppError.SpviDanada)
+            val trimmedCode = codigoB64.trim()
+            if (trimmedCode.isEmpty() || trimmedCode.length > MAX_REQUEST_CODE_CHARS) {
+                return Outcome.Err(AppError.SpviDanada)
+            }
+            val raw = b64urlD(trimmedCode)
+            if (raw.size < 50 || raw.size > MAX_REQUEST_BYTES) return Outcome.Err(AppError.SpviDanada)
             val epk = raw.copyOfRange(0, 33)
             if (epk[0] != 0x02.toByte() && epk[0] != 0x03.toByte()) return Outcome.Err(AppError.SpviDanada)
             val ct = raw.copyOfRange(33, raw.size - 16)
@@ -126,13 +141,15 @@ object Spvi23 {
             } catch (_: Exception) {
                 return Outcome.Err(AppError.SpviDanada)
             }
-            validar(dto)
+            validarSolicitud(dto)
         } catch (_: Exception) {
             Outcome.Err(AppError.SpviDanada)
         }
     }
 
-    private fun validar(dto: SolicitudSpviV2): Outcome<SolicitudSpviV2> {        if (dto.v != 2) return Outcome.Err(AppError.InvalidPayload)
+    /** Validación reutilizable también antes de emitir cuando el DTO no proviene del descifrador. */
+    fun validarSolicitud(dto: SolicitudSpviV2): Outcome<SolicitudSpviV2> {
+        if (dto.v != 2) return Outcome.Err(AppError.InvalidPayload)
         if (!nameRe.matches(dto.nombre.trim()) || !nameRe.matches(dto.apellidos.trim())) {
             return Outcome.Err(AppError.InvalidPayload)
         }
@@ -141,7 +158,12 @@ object Spvi23 {
         if (!deviceRe.matches(dto.deviceId.trim()) || !dto.deviceId.startsWith("SPVI:")) {
             return Outcome.Err(AppError.InvalidPayload)
         }
-        if (dto.nonce.isBlank()) return Outcome.Err(AppError.InvalidPayload)
+        if (!nonceRe.matches(dto.nonce) || dto.solicitadaEn.length > 64) {
+            return Outcome.Err(AppError.InvalidPayload)
+        }
+        if (dto.renueva != null && !renewalIdRe.matches(dto.renueva)) {
+            return Outcome.Err(AppError.InvalidPayload)
+        }
         when (val s = Secundarias.validar(null, dto.deviceId, dto.secundarias)) {
             is Outcome.Err -> return s
             is Outcome.Ok -> Unit
@@ -151,8 +173,11 @@ object Spvi23 {
         } catch (_: DateTimeParseException) {
             return Outcome.Err(AppError.InvalidPayload)
         }
+        if (!devicePubRe.matches(dto.devicePub)) return Outcome.Err(AppError.InvalidPayload)
         try {
-            descomprimirPunto(b64urlD(dto.devicePub.trim()))
+            val devicePub = b64urlD(dto.devicePub)
+            if (devicePub.size != 33) return Outcome.Err(AppError.InvalidPayload)
+            descomprimirPunto(devicePub)
         } catch (_: Exception) {
             return Outcome.Err(AppError.InvalidPayload)
         }
@@ -265,7 +290,9 @@ object Spvi23 {
     /** Verifica firma del código con la pública de firma. Acepta con o sin prefijo. Nunca lanza. */
     fun verificar(codigo: String, firmaPub: PublicKey): Boolean {
         return try {
-            val raw = b64urlD(codigo.removePrefix("SPVI2:").trim())
+            val encoded = codigo.removePrefix("SPVI2:").trim()
+            if (encoded.length > MAX_LICENSE_CODE_CHARS || encoded.length != 210) return false
+            val raw = b64urlD(encoded)
             if (raw.size != 33 + 44 + 16 + 64) return false
             val epk = raw.copyOfRange(0, 33)
             val ct = raw.copyOfRange(33, 77)

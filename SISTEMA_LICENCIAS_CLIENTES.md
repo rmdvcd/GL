@@ -12,13 +12,13 @@ El flujo se divide en:
 1. **Solicitud (Cliente → GL):** La app cliente recopila los datos del usuario, dispositivo y app, genera un par de claves efímero ECDH P-256 y cifra la solicitud hacia la clave pública ECDH de GL.
 2. **Validación y Emisión (GL):**
    - GL descifra y valida la solicitud.
-   - Comprueba en su registro histórico que el usuario (`CI` / `teléfono`) con ese dispositivo (`deviceId`) no tenga peticiones previas.
-   - Si tiene una licencia activa: exige que la solicitud sea de un tipo diferente y acumula el tiempo restante de la activa (salvo si se solicita Perpetua o si la activa era de prueba).
+   - Comprueba en las licencias ya guardadas si coinciden usuario (`CI` / `teléfono`), `deviceId` y app; no registra solicitudes pendientes.
+   - Si tiene una licencia activa, permite renovar el mismo tipo o cambiarlo y acumula el tiempo restante cuando corresponde (excepto al pasar a Perpetua o si la activa era de prueba).
    - Si tiene una licencia vencida y solicita el mismo tipo: se procesa como **Revalidación**.
-   - El operador introduce los números de transacción enviados por el cliente y extraídos del SMS bancario. GL solo habilita el cobro y la emisión si ambos números coinciden.
+   - El operador introduce manualmente el número indicado por el cliente y el que lee del SMS bancario. GL solo compara los valores tras quitar espacios en los extremos (distingue mayúsculas/minúsculas) para habilitar el botón; no consulta al banco ni verifica por sí mismo que el pago exista.
    - GL genera un **código alfanumérico de 16 caracteres en grupos de 4 (`XXXX-XXXX-XXXX-XXXX`)** y emite la licencia cifrada hacia la clave pública del dispositivo cliente, firmada con la clave privada ECDSA de GL.
 3. **Activación (GL → Cliente):** El cliente recibe el mensaje con el código de 16 caracteres y el sobre cifrado, verifica la firma criptográfica de GL, valida que el `deviceId` y `appName` coincidan y persiste la licencia de forma segura.
-4. **Clave Maestra de Desarrollo:** Para pruebas inmediatas sin pasar por el flujo de emisión, el cliente reconoce la clave maestra `GLMK-PERM-MAXS-9999`, la cual activa la app de forma **permanente** y con el **máximo de 10 apps secundarias**.
+4. **Clave Maestra de Desarrollo:** el ejemplo de cliente puede habilitar `GLMK-PERM-MAXS-9999` solo en builds de desarrollo. GL muestra la clave únicamente en debug; en release el campo de BuildConfig está vacío y el validador falla cerrado. La clave es pública y no debe usarse como autorización de producción.
 
 ---
 
@@ -33,7 +33,8 @@ El flujo se divide en:
 ### 2.2 Clave Maestra de Desarrollo (Master Key)
 - **Código:** `GLMK-PERM-MAXS-9999`
 - **Propósito:** Permite al desarrollador probar y activar de inmediato cualquier app cliente receptora de licencias de GL.
-- **Opción A (Mitigación Vuln 1):** La clave maestra sólo es válida en entornos de desarrollo y depuración (`BuildConfig.DEBUG == true`). En builds de producción (`release`), la verificación de clave maestra está completamente deshabilitada (`isMasterKey` devuelve siempre `false`), previniendo que cualquier usuario final pueda activar la app en producción con la clave de pruebas.
+- **Debug solamente:** GL la compila en `BuildConfig` solo para `debug`; en `release` el valor es vacío, la tarjeta está oculta y `MasterKey.isMasterKey` falla cerrado por defecto. Para una app cliente, inyecta el código solo en BuildConfig de debug y pasa explícitamente `BuildConfig.DEBUG`; no pongas el literal en código común de producción. Esto es una barrera de desarrollo, no secreto criptográfico.
+- Configuración recomendada de variantes: `debug { buildConfigField("String", "MASTER_KEY_CODE", "\"GLMK-PERM-MAXS-9999\"") }`; `release { buildConfigField("String", "MASTER_KEY_CODE", "\"\"") }`. Mantén el literal fuera de `src/main`.
 - **Efecto en el cliente (en Debug):**
   - Estado: `ACTIVA` / `PERPETUA` (permanente, sin fecha de caducidad).
   - Apps secundarias habilitadas: `10` (el máximo permitido).
@@ -43,7 +44,7 @@ El flujo se divide en:
 
 ## 3. Claves Públicas fijas de GL (Ancla de Confianza)
 
-Cada app cliente debe incrustar las claves públicas de GL de la instalación emisora correspondiente:
+Cada app cliente debe fijar las claves públicas de la instalación emisora correspondiente. El siguiente JSON es un ejemplo asociado a una instalación concreta y puede estar obsoleto: exporta las claves desde la pestaña **Claves** del GL emisor y compara las huellas en el momento de configurarlo.
 
 ```json
 {
@@ -64,7 +65,7 @@ Cada app cliente debe incrustar las claves públicas de GL de la instalación em
 
 ### 4.1 Datos requeridos en la Solicitud
 De acuerdo a las especificaciones, la solicitud de licencia debe incluir de forma cifrada:
-1. **ID del dispositivo solicitante:** `deviceId` (ej. identificador de hardware único, 8-128 caracteres `[A-Za-z0-9:_-]`).
+1. **ID del dispositivo solicitante:** `deviceId` (identificador declarado por el cliente, 8-128 caracteres `[A-Za-z0-9:_-]`; GL no demuestra que sea único ni que corresponda a hardware).
 2. **Nombre de la app:** `appName` (ej. `"MiApp"`, `"SPVI"`, 2-80 caracteres).
 3. **Dispositivo desde el cual se solicita:** `dispositivo` (nombre o modelo del hardware, ej. `"Samsung Galaxy S22"`, `"Pixel 8 Pro"`).
 4. **Datos del usuario:**
@@ -80,8 +81,8 @@ De acuerdo a las especificaciones, la solicitud de licencia debe incluir de form
 Campos criptográficos complementarios:
 - `v`: Versión del contrato (`1`).
 - `solicitadaEn`: Timestamp ISO-8601 UTC.
-- `nonce`: Cadena aleatoria Base64 (16–128 bytes).
-- `devicePub`: Clave pública ECDH P-256 del cliente (SPKI Base64), necesaria para que GL emita la licencia exclusivamente descifrable por este cliente.
+- `nonce`: Cadena aleatoria Base64/Base64url-ish (16–128 caracteres).
+- `devicePub`: Clave pública EC P-256 del cliente (SPKI Base64), obligatoria. GL cifra la licencia hacia la clave suministrada, pero no demuestra que el cliente posea la privada, la guarde en hardware ni la vincule a `deviceId`.
 
 ### 4.2 Esquema JSON del Payload Plano de Solicitud
 
@@ -126,15 +127,16 @@ La licencia emitida contiene de forma cifrada:
 5. **Licencia obtenida, apps secundarias y periodo restante:**
    - `licenciaObtenida`: Código de 16 caracteres alfanuméricos agrupados en grupos de 4 (`XXXX-XXXX-XXXX-XXXX`).
    - `secundarias`: Cantidad de apps secundarias autorizadas (0 a 10).
-   - `periodoRestante`: Días restantes acumulados o duración total efectiva (incluye días transferidos de licencias previas sin caducar).
+   - `periodoRestante`: días remanentes transferidos desde una licencia previa, cuando corresponde; no es la duración total de la nueva licencia ni prueba de pago.
 6. **Campos de control:**
    - `id`: UUID de la licencia.
    - `tipo`: `MENSUAL` | `SEMESTRAL` | `ANUAL` | `PERPETUA`.
    - `emitidaEn`: Timestamp ISO-8601 UTC.
    - `venceEn`: Timestamp ISO-8601 UTC (o `null` para PERPETUA).
-   - `estado`: `ACTIVA` | `PERPETUA`.
+   - `estado`: `ACTIVA`, `PERPETUA`, `VENCIDA` o `REVOCADA`, según el ciclo de vida.
    - `codigoCorto`: Idéntico a `licenciaObtenida`.
    - `nonce`: Nonce fresco generado por GL.
+   - `txNumber` (en la licencia JSON v1): número de transacción que el operador compara manualmente; el payload va cifrado al cliente, pero el campo no demuestra que el banco haya confirmado el pago. SPVI2 no incluye este dato en su código corto.
 
 ### 5.2 Esquema JSON del Payload Plano de Licencia
 
@@ -163,10 +165,11 @@ La licencia emitida contiene de forma cifrada:
   "periodoRestante": 45,
   "solicitadaEn": "2026-10-15T14:30:00Z",
   "emitidaEn": "2026-10-15T14:35:00Z",
-  "venceEn": "2026-11-29T14:35:00Z",
+  "venceEn": "2026-12-29T14:35:00Z",
   "estado": "ACTIVA",
   "codigoCorto": "4K7N-9X2M-B8PQ-3T5V",
-  "nonce": "N7q9L2mP5t8V1w4Z=="
+  "nonce": "N7q9L2mP5t8V1w4Z==",
+  "txNumber": "TX-20261015-001"
 }
 ```
 
@@ -196,8 +199,11 @@ Tanto la solicitud como la licencia viajan encapsuladas en un Envelope JSON:
 - **Cifrado autenticado:** AES-256-GCM (`IV` = 12 bytes, `Tag` = 16 bytes / 128 bits).
 - **Firma digital:** ECDSA SHA-256 en formato ASN.1 DER.
 - **Transcript firmado (bytes):** `epkDER || iv || ct || tag`
-- **AAD GCM para solicitud:** `"1|ECIES-P256-AES256GCM-v1|" + epkBase64 + "|gl-sign-v1"`
-- **AAD GCM para licencia:** `"1|ECIES-P256-AES256GCM-v1|" + licenseId`
+- **AAD GCM para solicitud:** `CryptoEngine.canonical(listOf("1", "ECIES-P256-AES256GCM-v1", epkBase64, "gl-sign-v1"))`.
+- **AAD GCM para licencia:** `CryptoEngine.canonical(listOf("1", "ECIES-P256-AES256GCM-v1", licenseId))`.
+- `canonical` concatena campos UTF-8 prefijando cada uno con una longitud de 4 bytes big-endian. **No** se usa la representación textual con `|` que aparece en documentos antiguos; esos bytes son parte del contrato v1 y no deben cambiarse sin versionar.
+
+La frescura del emisor acepta como máximo 72 horas de antigüedad y 2 horas de adelanto, con comparación exacta. **No** consume ni persiste el nonce; la misma solicitud puede reproducirse si se vuelve a confirmar el pago. El reloj del emisor es de pared y no es resistente a rollback.
 
 ---
 
@@ -217,9 +223,9 @@ Al implementar el cliente, tenga en cuenta las reglas que aplica GL:
 3. **Petición con Licencia Vencida (Revalidación):**
    - Si la licencia previa caducó y el usuario solicita **el mismo tipo**, GL la procesa como **Revalidación**, emitiendo un nuevo código y periodo completo a partir de la fecha actual.
    - Si solicita un tipo distinto, se procesa como renovación con cambio de plan.
-4. **Validación de Pago mediante Números de Transacción:**
-   - El cliente debe enviar el número de transferencia/transacción bancaria que le devuelve Transfermóvil o EnZona.
-   - GL contrasta este número con el SMS bancario recibido. Solo si coinciden exactamente se habilita la creación de la licencia.
+4. **Comparación manual de Números de Transacción:**
+   - El operador introduce el número que comunica el cliente y el que lee del SMS bancario; GL habilita el botón solo si coinciden después de quitar espacios externos (comparación sensible a mayúsculas/minúsculas).
+   - GL no lee SMS, no se conecta a Transfermóvil/EnZona ni a un banco y no verifica que el pago sea real. Esa comprobación queda a cargo del operador.
 
 ---
 
@@ -298,6 +304,7 @@ data class LicensePayload(
     val estado: String,
     val codigoCorto: String? = null,
     val nonce: String,
+    val txNumber: String? = null,
 )
 ```
 
@@ -435,14 +442,12 @@ class ClientLicenseManager(
     private val glSigningKeyB64: String,
 ) {
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
-    private val masterKeyCode = "GLMK-PERM-MAXS-9999"
+    // Configura el literal solo en buildConfigField de debug; en release usa "".
+    private val masterKeyCode = com.example.cliente.BuildConfig.MASTER_KEY_CODE
 
-    /**
-     * Comprueba si un código introducido por el usuario es la clave maestra.
-     * Restringido estrictamente a builds DEBUG (Mitigación Vuln 1, Opción A).
-     */
-    fun isMasterKey(input: String, isDebug: Boolean = com.example.cliente.BuildConfig.DEBUG): Boolean {
-        if (!isDebug) return false
+    /** Nunca uses un valor por defecto permisivo para el modo debug. */
+    fun isMasterKey(input: String, isDebug: Boolean): Boolean {
+        if (!isDebug || masterKeyCode.isBlank()) return false
         val clean = input.replace("-", "").replace(" ", "").trim().uppercase()
         return clean == masterKeyCode.replace("-", "")
     }
@@ -522,11 +527,12 @@ class ClientLicenseManager(
     fun activarLicencia(
         rawInput: String,
         devicePrivateKey: java.security.PrivateKey,
+        expectedLicenseId: String? = null,
     ): Result<LicensePayload> {
         val trimmed = rawInput.trim()
 
         // 1. Verificación de Clave Maestra
-        if (isMasterKey(trimmed)) {
+        if (isMasterKey(trimmed, com.example.cliente.BuildConfig.DEBUG)) {
             val masterLic = LicensePayload(
                 v = 1,
                 id = "master-license-local",
@@ -551,6 +557,10 @@ class ClientLicenseManager(
             )
             return Result.success(masterLic)
         }
+
+        // El envelope no lleva el ID; para descifrarlo se necesita la línea `ID:` externa.
+        val licenseId = expectedLicenseId?.trim()?.takeIf { it.isNotEmpty() && it.length <= 64 }
+            ?: return Result.failure(IllegalArgumentException("ID de licencia ausente o inválido."))
 
         // 2. Extracción de Envelope JSON si viene acompañado de texto o código
         val jsonStart = trimmed.indexOf("{\"v\":")
@@ -585,12 +595,12 @@ class ClientLicenseManager(
         val sharedSecret = ClientCryptoEngine.ecdh(devicePrivateKey, epkPub)
         val aesKey = ClientCryptoEngine.hkdfSha256(sharedSecret, iv, "gl-lic-v1")
 
-        // AAD para licencia: "1|ECIES-P256-AES256GCM-v1|<licenseId>"
-        // En GL, el AAD se deriva con el ID de licencia; si no se conoce de antemano,
-        // se puede intentar primero o leer el plano
+        // El ID llega fuera del envelope (línea `ID:` del mensaje). Forma parte del AAD.
+        val aad = ClientCryptoEngine.canonical(
+            listOf("1", "ECIES-P256-AES256GCM-v1", licenseId),
+        )
         val decryptedBytes = try {
-            // Intento con AAD canónico de licencia o genérico
-            ClientCryptoEngine.aesGcmDecrypt(aesKey, iv, ct, tag, aad = ByteArray(0))
+            ClientCryptoEngine.aesGcmDecrypt(aesKey, iv, ct, tag, aad = aad)
         } catch (_: Exception) {
             return Result.failure(SecurityException("No se pudo descifrar la licencia (fallo de autenticación GCM)."))
         }
@@ -598,6 +608,9 @@ class ClientLicenseManager(
         val license = json.decodeFromString(LicensePayload.serializer(), decryptedBytes.decodeToString())
 
         // 4. Validaciones de Integridad y Correspondencia
+        if (license.id != licenseId) {
+            return Result.failure(IllegalStateException("El ID externo no coincide con la licencia descifrada."))
+        }
         if (!license.appName.equals(appName, ignoreCase = true)) {
             return Result.failure(IllegalStateException("La licencia fue emitida para '${license.appName}', no para '$appName'."))
         }
@@ -665,8 +678,10 @@ object HardwareKeyStoreHelper {
 }
 
 /**
- * 2. Protección contra Clock Rollback mediante Marca de Agua Monotónica - Vuln 3, Opción A
+ * 2. Defensa local de mejor esfuerzo ante Clock Rollback mediante una marca persistida
  */
+// Defensa local de mejor esfuerzo, no un reloj confiable: se basa en la hora del dispositivo
+// y SharedPreferences puede restaurarse, borrarse o alterarse. GL no aporta hora de servidor.
 class ClockWatermarkManager(context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences("lic_watermark_prefs", Context.MODE_PRIVATE)
     private val KEY_WATERMARK = "last_known_timestamp_epoch"
@@ -737,31 +752,31 @@ object SecondaryQuotaTokenManager {
 
 ---
 
-## 9. Checklist de Implementación en Apps Cliente
+## 9. Checklist para quien implemente una app cliente
 
-Al integrar este sistema en una nueva aplicación cliente:
+Estos puntos son tareas/recomendaciones para el **cliente externo**; no indican que el código de este emisor ya las implemente:
 
-- [x] **Almacenar las claves públicas de GL** como constantes seguras en la app.
-- [x] **Atar `devicePub` y `deviceId` al Keystore de hardware** (`AndroidKeyStore`, TEE/StrongBox).
-- [x] **Incluir el modelo de dispositivo** (`dispositivo = Build.MANUFACTURER + " " + Build.MODEL`).
-- [x] **Proveer UI para ingresar el No. de transacción bancaria** y recordarle al usuario que lo comparta junto con la solicitud.
-- [x] **Restringir la clave maestra (`GLMK-PERM-MAXS-9999`) a `BuildConfig.DEBUG`** para impedir accesos no autorizados en producción.
-- [x] **Proteger la caducidad con Marca de Agua monotónica** (`ClockWatermarkManager`) contra manipulación del reloj del sistema.
-- [x] **Vincular apps secundarias mediante sub-tokens firmados** con validación de índice de ranura y cuota.
-- [x] **Emplear Length-Prefixing canónico** en AAD contra ataques de colisión de delimitadores.
+- [ ] Fijar las claves públicas del GL concreto y verificar sus huellas por un canal confiable.
+- [ ] Proteger la privada del cliente (Keystore cuando esté disponible). GL cifra hacia la pública recibida, pero no verifica attestation ni vincula la clave a `deviceId`.
+- [ ] Incluir el modelo de dispositivo (`Build.MANUFACTURER + " " + Build.MODEL`) si se desea mostrarlo al operador.
+- [ ] Pedir el número de transacción y enviarlo para la comprobación manual del emisor; no asumir una pasarela de pago automática.
+- [ ] Mantener cualquier clave maestra de prueba exclusivamente en la variante debug, con `BuildConfig.DEBUG` explícito y el literal ausente de release.
+- [ ] Si el cliente necesita resistir rollback, diseñar y probar su propia fuente/marca monotónica; GL no aporta una marca de agua confiable.
+- [ ] Si hay apps secundarias, diseñar y verificar sus cuotas en el cliente; los sub-tokens descritos en esta guía no son un módulo de GL.
+- [ ] Implementar AAD v1 exactamente con `ClientCryptoEngine.canonical` (prefijo de longitud big-endian), no con delimitadores `|`.
 
 ---
 
-## 10. Matriz de Auditoría y Mitigaciones (Opción A en las 8 Vulnerabilidades)
+## 10. Estado de los controles en el emisor GL
 
-| # | Vulnerabilidad | Riesgo / Vector | Mitigación Implementada (Opción A) |
-|---|---|---|---|
-| **1** | Exposición de Master Key en Producción | Usuario ingresa `GLMK-PERM-MAXS-9999` en release y obtiene licencia perpetua gratis con 10 secundarias. | `MasterKey.isMasterKey` exige `isDebug == true` (`BuildConfig.DEBUG`). En release siempre retorna `false`. |
-| **2** | Reutilización de No. de Transacción Bancaria | Usuario reutiliza un comprobante bancario para activar múltiples licencias. | `txNumber` persistido en tabla `licenses` de SQLCipher con índice único. GL rechaza números duplicados con `TransactionAlreadyUsed`. |
-| **3** | Ataque de Retraso de Reloj (Clock Rollback) | Usuario atrasa el reloj del sistema operativo para extender licencias vencidas. | Monotonic timestamp watermark persistido en almacenamiento protegido. Si `now < watermark`, la licencia se bloquea por fraude. |
-| **4** | Clonación de `deviceId` / `devicePub` | Copia de identificadores a emuladores u otros dispositivos. | Generación de clave EC P-256 en Android Keystore con hardware backing (StrongBox/TEE). `devicePub` vinculado al silicio. |
-| **5** | Omisión de `devicePub` en Solicitud | Licencia emitida sin cifrado específico para el cliente receptor. | `devicePub` es validado de forma obligatoria en `FieldValidator.validateRequest`. Rechaza con `DevicePubRequired` si falta o es inválido. |
-| **6** | Replay Indefinido de Solicitudes | Solicitud interceptada o reutilizada días o meses después. | Ventana de expiración estricta de 72 horas para `solicitadaEn` evaluada contra el reloj del emisor. Rechaza con `RequestExpired`. |
-| **7** | Falsificación de Quota de Apps Secundarias | Apps secundarias se auto-declaran autorizadas sin control criptográfico. | Emisión de sub-tokens firmados por la app primaria con verificación de ranura (1..cuota) y vinculación de `deviceId`. |
-| **8** | Inyección de Delimitadores en AAD | Ambigüedad en concatenación de cadenas separadas por `\|` en AAD. | Canonicalización con longitud prefijada (4-byte big-endian Length-Prefixing) en `CryptoEngine.canonical()`. |
+| # | Riesgo | Estado verificado en este repositorio |
+|---|---|---|
+| **1** | Clave maestra de desarrollo en release | El literal se genera solo en `BuildConfig` debug; release queda vacío y la tarjeta no se muestra. `MasterKey.isMasterKey` falla cerrado por defecto. Credencial pública de prueba, no secreto. |
+| **2** | Reutilización de transacciones | Se consulta `txNumber` contra licencias guardadas y los errores de lectura bloquean emisión; SPVI también conserva el valor. No hay índice único ni reserva atómica; existe una carrera hasta pulsar Registrar. |
+| **3** | Clock rollback / vigencia | v1 y la emisión SPVI aplican una ventana exacta de 72 h de antigüedad y 2 h futura. El reloj es de pared; no hay watermark ni resistencia a rollback en GL. |
+| **4** | Clonación de `deviceId` / `devicePub` | GL exige una clave EC P-256 parseable y cifra a esa clave. No hay proof-of-possession, attestation ni vínculo con `deviceId`. |
+| **5** | Omisión o malformación de `devicePub` | Obligatoria en v1; se rechaza si falta o no parsea como EC P-256. |
+| **6** | Replay de solicitudes | Ventana temporal limitada; el nonce no se consume ni persiste, así que replay dentro de la ventana sigue siendo posible. |
+| **7** | Cuota de apps secundarias | No hay módulo de sub-tokens/verificación de apps secundarias en este repositorio; es responsabilidad del cliente. |
+| **8** | Ambigüedad de AAD | El contrato v1 usa `canonical()` con longitud de 4 bytes big-endian. No cambiar esos bytes sin subir versión/definir compatibilidad. |
 

@@ -2,33 +2,17 @@
 
 Generador de licencias Android offline. Kotlin + Compose + Hilt + Room/SQLCipher. Lee `README.md` para el producto y `docs/ARCHITECTURE.md` para las capas.
 
-## Entorno de build (verificado en esta máquina)
+## Entorno de build
 
-El repo **no tiene `gradlew` ni `gradle-wrapper.jar`**, solo `gradle/wrapper/gradle-wrapper.properties`. Usa el `gradle` 8.9 del PATH o el wrapper de Android Studio.
+El repo **no tiene `gradlew` ni `gradle-wrapper.jar`**, solo `gradle/wrapper/gradle-wrapper.properties`. La compilación requiere JDK 17, Gradle 8.9 y Android SDK (compile/target API 35); define `ANDROID_HOME` o `local.properties` según tu entorno. `local.properties` está ignorado por Git.
 
-En esta máquina, la forma que funciona:
-
-```powershell
-$env:JAVA_HOME="C:\Program Files\Microsoft\jdk-17.0.20.101-hotspot"   # el default del sistema es JDK 25 y NO compila
-$env:ANDROID_HOME="C:\Users\666\AppData\Local\Android\Sdk"
-$gradle="C:\Users\666\.gradle\wrapper\dists\gradle-8.9-bin\90cnw93cvbtalezasaz0blq0a\gradle-8.9\bin\gradle.bat"
-& $gradle :app:testDebugUnitTest
-```
-
-- `local.properties` no existe y `.gitignore` lo ignora. Sin `ANDROID_HOME`, ponlo.
-- `adb` viene empaquetado con scrcpy, no con el SDK.
-- Dispositivo de referencia: serial `4bc9f8f3`, API 35, arm64-v8a.
-
-```bash
-adb shell pm clear dev.gl.license.debug   # OBLIGATORIO antes de instrumentados
-gradle :app:connectedDebugAndroidTest
-```
+En la sesión de auditoría actual no están disponibles `java`, `gradle` ni `ANDROID_HOME`, así que no se han ejecutado build, tests, lint ni instrumentados. Los resultados descritos más abajo como históricos no sustituyen una ejecución actual.
 
 ## Comandos
 
 ```bash
 gradle :app:assembleDebug
-gradle :app:testDebugUnitTest       # 110 tests / 22 suites / 0 fallos
+gradle :app:testDebugUnitTest       # Ejecuta los tests unitarios; el árbol actual contiene 167 @Test, sin resultado verificado aquí
 gradle :app:connectedDebugAndroidTest
 ```
 
@@ -39,9 +23,9 @@ adb shell am instrument -w -e class dev.gl.license.KeystoreCryptoTest \
   dev.gl.license.debug.test/dev.gl.license.HiltTestRunner
 ```
 
-## Los instrumentados de UI NO corren en este dispositivo
+## Hallazgo histórico: instrumentados de UI en Android 15
 
-Restricción de background-activity-start de Android 15 sobre `ActivityScenario`. Secuencia real en `logcat -v time`:
+En un dispositivo de referencia API 35 se observó la restricción de background-activity-start de Android 15 sobre `ActivityScenario`. No se ha verificado si afecta a otros runners/dispositivos. Secuencia registrada en `logcat -v time`:
 
 ```
 START ... InstrumentationActivityInvoker$EmptyActivity   result code=0    <- ActivityScenario monta su activity vacía
@@ -106,7 +90,7 @@ Tres lecciones más de `uiautomator`, verificadas con la pantalla Contacto:
 
 1. **`sqlcipher-android` no autocarga `libsqlcipher.so`.** Sin `AppRuntime.ensureInitialized()` antes de abrir Room: `UnsatisfiedLinkError: No implementation found for ...nativeOpen`. Ya está invocado en `GlApplication.onCreate()` y en `ProvideModule.db()`; **no lo quites de ninguno de los dos**.
 2. **`GlApplication.onCreate()` no corre en instrumentados.** `HiltTestRunner` sustituye la Application por `HiltTestApplication`. Cualquier init que solo viva en la Application es invisible para los tests.
-3. **El IV lo genera el Keystore.** `KeystoreManager` fija `setRandomizedEncryptionRequired(true)`. Pasar IV propio lanza `InvalidAlgorithmParameterException: Caller-provided IV not permitted`. No "simplifiques" `CryptoEngine.aesGcmEncrypt` para quitar el try/catch.
+3. **Claves AES de AndroidKeyStore:** `KeystoreManager` fija `setRandomizedEncryptionRequired(true)`, así que rechazan un IV aportado por el llamante. `CryptoEngine.aesGcmEncrypt` reintenta sin IV para esas claves y devuelve el IV efectivo. No quites ese fallback; el helper v1 usa claves software y debe mantener el mismo IV en HKDF y GCM.
 4. **`SecretKey.getFormat()` devuelve `null`** en Android para claves de AndroidKeyStore. Imposible detectar el origen de la clave así. Ya se intentó y falló.
 5. **`connectedDebugAndroidTest` desinstala los APK al terminar.** No es un fallo.
 6. **Los instrumentados no limpian datos de la app.** Sin `pm clear`, el arranque falla si hay estado previo.
@@ -117,7 +101,7 @@ Tres lecciones más de `uiautomator`, verificadas con la pantalla Contacto:
 
 ## Estado real (no asumir cobertura completa)
 
-- **El happy path cifrado (`LicenseGenerationE2ETest`) falla en la primera `waitUntil`.** El sobre entra en el campo pero `"Solicitud válida"` nunca aparece. Falló primero por `HiltTestApplication` (sin `AppRuntime`, sin `libsqlcipher.so`) y después —ya con `AppRuntime` instalado— sigue en timeout, sin causa diagnosticada. Los tests de `@Ignore` que quedan no cubren el happy path.
+- **Resultado histórico:** una ejecución anterior de `LicenseGenerationE2ETest` falló en la primera `waitUntil` (Hilt/AppRuntime/SQLCipher y luego causa no diagnosticada). El fixture ahora incluye `devicePub` y transacciones coincidentes, pero el test sigue marcado `@Ignore`; no se ha repetido en esta sesión y no se afirma que pase.
 - Para depurar el E2E, acuña un sobre en vez de teclearlo: `ClientRequestHelper.buildEnvelope(req, KeystoreManager.ecdhPair().public, json)` es exactamente lo que un cliente haría, y hay `KeystoreCryptoTest` instrumentado que prueba el criptográfico contra el Keystore real.
 - El camino **fácil de depurar con el E2E**: `ValidarSolicitudUseCase` / `FieldValidator` son puros y no tocan el Keystore. Un `descifrarSolicitud` que devuelve `Err(InvalidPayload)` con un sobre recién minteado significa que el problema está en `CryptoGatewayImpl.descifrarSolicitud` (AAD, `info` o verificación de firma), no en la inyección de texto de Espresso.
 - Verificado a mano en API 35: arranque, Generador, validación de envelope inválido, Registro, export→import `.glreg` (roundtrip, "Importación correcta (0)"), fichero exportado con cabecera `GLRG` + binario cifrado.
@@ -130,13 +114,14 @@ Tres lecciones más de `uiautomator`, verificadas con la pantalla Contacto:
 - `contentDescription` **Solicitud cifrada** en el campo del Generador. Los instrumentados dependen de él, junto a `Generar licencia`, `Registrar`, `Generador`, `Registro`, `Sin licencias`. No los cambies para arreglar un test.
 - La casilla de pago es un `Row` con `toggleable(..., Role.Checkbox)` y **no tiene `contentDescription`**. Búscala con `isToggleable() and hasText("Pago realizado")`, nunca por descripción.
 - Para avanzar de `Licencia generada.` a `Registrada.` hace falta disparar `ON_RESUME` (es lo que llama a `onReturnedFromShare()` y habilita el botón). En un test: `scenario.moveToState(CREATED)` y luego `moveToState(RESUMED)`. `activity.onResume()` es `protected` y no compila.
-- `AppError.userMessage` es genérico y sin secretos. Fail-closed.
-- `ClientRequestHelper` no se usa en producción; es la referencia para que el cliente construya envelopes.
+- `AppError.userMessage` es genérico y sin secretos. Ante error de reloj o lectura del historial, bloquea la validación/emisión; no conviertas esos fallos en `null` o lista vacía.
+- `MASTER_KEY_CODE` se define en `buildTypes.debug` y queda vacío en `release`; `TrustScreen` además lo oculta cuando `BuildConfig.DEBUG` es falso. Mantén el literal fuera de `src/main` y no pongas un valor por defecto permisivo en `MasterKey.isMasterKey`.
+- `ClientRequestHelper` no se usa en producción; es la referencia para que el cliente construya envelopes. El IV se comparte entre HKDF y AES-GCM.
 - Contrato criptográfico v1 inmutable. Cambiar AAD, curva o KDF = `v+1`. Añadir un campo al payload NO sube la versión: la firma va sobre `epk + ciphertext`, nunca sobre el plaintext.
 - **`appName` es obligatorio** en `SolicitudLicencia` y en `Licencia` (regex `^[\p{L}0-9 ._'-]{2,80}$`). El cliente tiene que mandarlo o `validateRequest` devuelve `InvalidPayload`. Si el JSON no trae la clave, kotlinx lanza `MissingFieldException` y `descifrarSolicitud` la captura en su `catch (_: Exception)` (CryptoGatewayImpl.kt:50) → `InvalidPayload`, no crash.
 - `FieldValidator.validateLicense` **reconstruye una `SolicitudLicencia` artificial** para reusar `validateRequest`. Si añades un campo a `SolicitudLicencia`, propágalo ahí o toda licencia emitida se rechazará a sí misma al revalidarse en la importación.
-- `secundarias` en el flujo v1 es opcional y solo aplica a otras apps (`Secundarias.aplicaA`); ausente/`null` significa app anterior, y `-1`, `11` o no entero devuelven `InvalidSecundarias`. En `Licencia` v1 se omite la clave cuando es `null`, `precioCobrado` es `@Transient` (no viaja firmado ni en `.glreg`), y el precio queda congelado al emitir. SPVI 0.23.1 no usa el flujo v1: solicitud `SPVIR1:` → `Spvi23.abrir` (HKDF `SPVI-R1`, AAD `SPVI-R1|`), licencia corta `SPVI2:` de 210 caracteres (no 216) → `Spvi23.sellarLicencia` (HKDF `SPVI-L2`); cualquier solicitud v1 de SPVI se rechaza con `SpviDesactualizada` y no se emite licencia larga. Ver `CONTEXTO_LICENCIAS.md`.
-- Room está en **version 5**. `GlMigrations.M_1_2` añade `appName TEXT NOT NULL DEFAULT ''`; `M_2_3` crea `contact_methods (id PK "$kind:$value", kind, value, createdAtIso)`; `M_3_4` añade `secundarias INTEGER` y `precioCobrado INTEGER`, ambos opcionales; `M_4_5` añade `codigoCorto TEXT` (código SPVI2, nullable). `DatabaseMigrationTest` corre las migraciones sobre el DDL real y verifica que las filas previas sobreviven. Si añades columna, sube versión, añade Migration **y** el test.
+- `secundarias` en el flujo v1 es opcional y solo aplica a otras apps (`Secundarias.aplicaA`); ausente/`null` significa app anterior, y `-1`, `11` o no entero devuelven `InvalidSecundarias`. En `Licencia` v1 se omite la clave cuando es `null`; `precioCobrado` es `@Transient` y no viaja en el JSON firmado, pero se conserva en metadatos separados del backup `.glreg` (que también admite el formato antiguo sin borrar un precio local ya existente). SPVI 0.23.1 no usa el flujo v1: solicitud `SPVIR1:` → `Spvi23.abrir` (HKDF `SPVI-R1`, AAD `SPVI-R1|`), licencia corta `SPVI2:` de 210 caracteres (no 216) → `Spvi23.sellarLicencia` (HKDF `SPVI-L2`); cualquier solicitud v1 de SPVI se rechaza con `SpviDesactualizada` y no se emite licencia larga. Frescura de emisión: máximo 72 h de antigüedad y 2 h de adelanto; el nonce no se consume y el reloj local no resiste rollback. Ver `CONTEXTO_LICENCIAS.md`.
+- Room está en **versión 6**. `GlMigrations.M_1_2` añade `appName TEXT NOT NULL DEFAULT ''`; `M_2_3` crea `contact_methods`; `M_3_4` añade `secundarias INTEGER` y `precioCobrado INTEGER`, ambos opcionales; `M_4_5` añade `codigoCorto TEXT`; `M_5_6` añade `txNumber TEXT`. Consulta `Db.kt` y `GlMigrations` para el DDL completo. `DatabaseMigrationTest` comprueba que las filas previas sobreviven. Si añades columna, sube versión, añade Migration **y** el test.
 - `.glreg` con licencias emitidas antes de un campo obligatorio nuevo **no importa**: `importar` corre `EnvelopeValidator.license` sobre cada una y falla con `ImportFailure`.
 - `.glreg` no es portable entre teléfonos (firma Keystore local).
 - **Las claves públicas de GL son por dispositivo, no del producto.** `KeystoreManager` las genera en el Android Keystore local (`gl.ecdh.p256.v1` y `gl.sign.ec.p256.v1`). Si borras datos de GL o cambias de teléfono, sale otro par y el cliente que fijó las viejas rechazará todo.

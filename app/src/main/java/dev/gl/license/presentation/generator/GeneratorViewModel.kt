@@ -21,6 +21,7 @@ import dev.gl.license.domain.usecase.GenerarLicenciaUseCase
 import dev.gl.license.domain.usecase.RegistrarLicenciaUseCase
 import dev.gl.license.domain.usecase.ValidarSolicitudUseCase
 import dev.gl.license.security.Spvi23
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -28,6 +29,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+private const val MAX_RAW_REQUEST_CHARS = Spvi23.MAX_REQUEST_TEXT_CHARS
+private const val MAX_TRANSACTION_CHARS = 128
+
+private fun usableTransaction(value: String): Boolean =
+    value.isNotBlank() && value.length <= MAX_TRANSACTION_CHARS && value.none { it.isISOControl() }
 
 data class GeneratorUi(
     val raw: String = "",
@@ -50,7 +57,7 @@ data class GeneratorUi(
     val clipboardCaptured: Boolean = false,
 ) {
     val txMatch: Boolean
-        get() = txCliente.isNotBlank() && txSms.isNotBlank() && txCliente.trim() == txSms.trim()
+        get() = usableTransaction(txCliente) && usableTransaction(txSms) && txCliente.trim() == txSms.trim()
 }
 
 sealed interface ShareEvent {
@@ -98,13 +105,23 @@ class GeneratorViewModel @Inject constructor(
 
     private val _ui = MutableStateFlow(GeneratorUi())
     val ui: StateFlow<GeneratorUi> = _ui
+    private var rawValidationJob: Job? = null
+    private var rawValidationGeneration = 0L
+    private var generationGeneration = 0L
+    private var generationJob: Job? = null
     private val _share = MutableSharedFlow<ShareEvent>(extraBufferCapacity = 1)
     val share: SharedFlow<ShareEvent> = _share
 
     fun onRawChange(text: String) {
+        rawValidationJob?.cancel()
+        val validationGeneration = ++rawValidationGeneration
+        generationGeneration++
+        generationJob?.cancel()
+        val raw = text.take(MAX_RAW_REQUEST_CHARS)
         _ui.update {
             it.copy(
-                raw = text,
+                raw = raw,
+                loading = false,
                 error = null,
                 success = null,
                 infoAviso = null,
@@ -123,19 +140,40 @@ class GeneratorViewModel @Inject constructor(
                 clipboardCaptured = false,
             )
         }
-        if (text.isBlank()) return
-        if (Spvi23.contieneCodigo(text)) {
-            viewModelScope.launch {
-                when (val r = abrirSpvi.abrirSolicitud(text)) {
-                    is Outcome.Ok -> _ui.update { it.copy(spvi = r.value, error = null) }
-                    is Outcome.Err -> _ui.update { it.copy(spvi = null, error = r.error.userMessage) }
-                }
-            }
+        if (text.length > MAX_RAW_REQUEST_CHARS) {
+            _ui.update { it.copy(error = AppError.InvalidPayload.userMessage) }
             return
         }
-        viewModelScope.launch {
-            when (val r = validate(text)) {
+        if (raw.isBlank()) return
+
+        rawValidationJob = viewModelScope.launch {
+            if (Spvi23.contieneCodigo(raw)) {
+                when (val r = abrirSpvi.abrirSolicitud(raw)) {
+                    is Outcome.Ok -> if (validationGeneration == rawValidationGeneration) {
+                        _ui.update { it.copy(spvi = r.value, error = null) }
+                    }
+                    is Outcome.Err -> if (validationGeneration == rawValidationGeneration) {
+                        _ui.update { it.copy(spvi = null, error = r.error.userMessage) }
+                    }
+                }
+                return@launch
+            }
+
+            when (val r = validate(raw)) {
+                is Outcome.Err -> if (validationGeneration == rawValidationGeneration) {
+                    _ui.update {
+                        it.copy(
+                            solicitud = null,
+                            error = if (mencionaSpvi(raw)) {
+                                AppError.SpviNoEs023.userMessage
+                            } else {
+                                r.error.userMessage
+                            },
+                        )
+                    }
+                }
                 is Outcome.Ok -> {
+                    if (validationGeneration != rawValidationGeneration) return@launch
                     val solicitud = r.value.solicitud
                     if (esSpviV1(solicitud)) {
                         _ui.update {
@@ -144,78 +182,58 @@ class GeneratorViewModel @Inject constructor(
                                 error = AppError.SpviDesactualizada.userMessage,
                             )
                         }
-                    } else {
-                        when (val eval = evaluarHistorial(solicitud)) {
-                            is EvaluacionHistorial.RechazadaYaPerpetua -> {
-                                _ui.update {
-                                    it.copy(
-                                        solicitud = null,
-                                        error = eval.error,
-                                    )
-                                }
-                            }
-                            is EvaluacionHistorial.ActivaMismoTipo -> {
-                                _ui.update {
-                                    it.copy(
-                                        solicitud = solicitud,
-                                        error = null,
-                                        infoAviso = eval.aviso,
-                                        diasRemanentes = eval.diasRestantes,
-                                    )
-                                }
-                            }
-                            is EvaluacionHistorial.ActivaDiferente -> {
-                                _ui.update {
-                                    it.copy(
-                                        solicitud = solicitud,
-                                        error = null,
-                                        infoAviso = eval.aviso,
-                                        diasRemanentes = eval.diasRestantes,
-                                    )
-                                }
-                            }
-                            is EvaluacionHistorial.Revalidacion -> {
-                                _ui.update {
-                                    it.copy(
-                                        solicitud = solicitud,
-                                        error = null,
-                                        infoAviso = eval.aviso,
-                                        diasRemanentes = 0L,
-                                    )
-                                }
-                            }
-                            is EvaluacionHistorial.RenovacionCambio -> {
-                                _ui.update {
-                                    it.copy(
-                                        solicitud = solicitud,
-                                        error = null,
-                                        infoAviso = eval.aviso,
-                                        diasRemanentes = 0L,
-                                    )
-                                }
-                            }
-                            is EvaluacionHistorial.NuevaSolicitud -> {
-                                _ui.update {
-                                    it.copy(
-                                        solicitud = solicitud,
-                                        error = null,
-                                        infoAviso = null,
-                                        diasRemanentes = 0L,
-                                    )
-                                }
-                            }
+                        return@launch
+                    }
+                    val eval = evaluarHistorial(solicitud)
+                    if (validationGeneration != rawValidationGeneration) return@launch
+                    when (eval) {
+                        is EvaluacionHistorial.ErrorEvaluacion -> _ui.update {
+                            it.copy(solicitud = null, error = eval.error)
+                        }
+                        is EvaluacionHistorial.RechazadaYaPerpetua -> _ui.update {
+                            it.copy(solicitud = null, error = eval.error)
+                        }
+                        is EvaluacionHistorial.ActivaMismoTipo -> _ui.update {
+                            it.copy(
+                                solicitud = solicitud,
+                                error = null,
+                                infoAviso = eval.aviso,
+                                diasRemanentes = eval.diasRestantes,
+                            )
+                        }
+                        is EvaluacionHistorial.ActivaDiferente -> _ui.update {
+                            it.copy(
+                                solicitud = solicitud,
+                                error = null,
+                                infoAviso = eval.aviso,
+                                diasRemanentes = eval.diasRestantes,
+                            )
+                        }
+                        is EvaluacionHistorial.Revalidacion -> _ui.update {
+                            it.copy(
+                                solicitud = solicitud,
+                                error = null,
+                                infoAviso = eval.aviso,
+                                diasRemanentes = 0L,
+                            )
+                        }
+                        is EvaluacionHistorial.RenovacionCambio -> _ui.update {
+                            it.copy(
+                                solicitud = solicitud,
+                                error = null,
+                                infoAviso = eval.aviso,
+                                diasRemanentes = 0L,
+                            )
+                        }
+                        is EvaluacionHistorial.NuevaSolicitud -> _ui.update {
+                            it.copy(
+                                solicitud = solicitud,
+                                error = null,
+                                infoAviso = null,
+                                diasRemanentes = 0L,
+                            )
                         }
                     }
-                }
-                is Outcome.Err -> _ui.update {
-                    it.copy(
-                        solicitud = null,
-                        error = if (mencionaSpvi(text)) {
-                            AppError.SpviNoEs023.userMessage
-                        } else {
-                            r.error.userMessage
-                        },
-                    )
                 }
             }
         }
@@ -237,21 +255,33 @@ class GeneratorViewModel @Inject constructor(
     }
 
     fun onTxClienteChange(text: String) {
+        generationGeneration++
+        generationJob?.cancel()
+        val safeText = text.take(MAX_TRANSACTION_CHARS + 1)
         _ui.update { current ->
-            val match = text.isNotBlank() && current.txSms.isNotBlank() && text.trim() == current.txSms.trim()
+            val match = usableTransaction(safeText) &&
+                usableTransaction(current.txSms) &&
+                safeText.trim() == current.txSms.trim()
             current.copy(
-                txCliente = text,
+                txCliente = safeText,
                 paid = if (!match) false else current.paid,
+                loading = false,
             )
         }
     }
 
     fun onTxSmsChange(text: String) {
+        generationGeneration++
+        generationJob?.cancel()
+        val safeText = text.take(MAX_TRANSACTION_CHARS + 1)
         _ui.update { current ->
-            val match = current.txCliente.isNotBlank() && text.isNotBlank() && current.txCliente.trim() == text.trim()
+            val match = usableTransaction(current.txCliente) &&
+                usableTransaction(safeText) &&
+                current.txCliente.trim() == safeText.trim()
             current.copy(
-                txSms = text,
+                txSms = safeText,
                 paid = if (!match) false else current.paid,
+                loading = false,
             )
         }
     }
@@ -260,92 +290,126 @@ class GeneratorViewModel @Inject constructor(
         val current = _ui.value
         if (!current.txMatch) return
         if (current.solicitud != null || current.spvi != null) {
-            _ui.update { it.copy(paid = v) }
+            generationGeneration++
+            generationJob?.cancel()
+            _ui.update { it.copy(paid = v, loading = false) }
         }
     }
 
     fun generateLicense() {
         val current = _ui.value
-        if (!current.paid || !current.txMatch) return
-        val spvi = current.spvi
-        if (spvi != null) {
-            generarSpvi(spvi)
-            return
-        }
-        val req = current.solicitud ?: return
+        if (!current.paid || !current.txMatch || current.loading ||
+            current.pending != null || current.encryptedLicense != null ||
+            generationJob?.isCompleted == false
+        ) return
+        val generation = ++generationGeneration
         val tx = current.txCliente.trim()
-        viewModelScope.launch {
-            _ui.update { it.copy(loading = true, error = null, success = null) }
-            when (val r = generate(req, true, diasAdicionales = current.diasRemanentes, txNumber = tx)) {
-                is Outcome.Err -> _ui.update { it.copy(loading = false, error = r.error.userMessage) }
-                is Outcome.Ok -> {
-                    val (lic, enc) = r.value
-                    val total = lic.secundarias?.let { PrecioTabla.total(lic.type, it) }
-                        ?: PrecioTabla.total(lic.type, 0)
-                    val body = LicenseMessage.build(
-                        appName = lic.appName,
-                        tipo = lic.type,
-                        secundarias = lic.secundarias,
-                        total = total,
-                        licenseId = lic.id,
-                        envelope = enc,
-                        codigoLicencia = lic.codigoCorto,
-                    )
-                    _ui.update {
-                        it.copy(
-                            loading = false,
-                            encryptedLicense = enc,
-                            shareBody = body,
-                            pending = lic,
-                            success = "Licencia generada: ${lic.codigoCorto ?: lic.id}",
-                            shareLaunched = true,
-                            canRegister = false,
-                        )
-                    }
-                    _share.emit(
-                        when (req.effectiveChannel) {
-                            ViaSolicitud.WHATSAPP -> ShareEvent.WhatsApp(req.effectivePhone, body)
-                            ViaSolicitud.SMS -> ShareEvent.Sms(req.effectivePhone, body)
+        _ui.update { it.copy(loading = true, error = null, success = null) }
+        generationJob = viewModelScope.launch {
+            try {
+                val spvi = current.spvi
+                if (spvi != null) {
+                    when (val r = emitirSpvi(spvi, pagoConfirmado = true, txNumber = tx)) {
+                        is Outcome.Err -> if (isCurrentGeneration(generation, current.raw, tx)) {
+                            _ui.update { it.copy(error = r.error.userMessage) }
                         }
-                    )
+                        is Outcome.Ok -> {
+                            if (!isCurrentGeneration(generation, current.raw, tx)) return@launch
+                            val emitida = r.value
+                            val lic = emitida.licencia
+                            _ui.update {
+                                it.copy(
+                                    encryptedLicense = lic.codigoCorto,
+                                    shareBody = emitida.mensaje,
+                                    pending = lic,
+                                    renuevaAviso = if (emitida.renuevaIgnorada) {
+                                        "Renovación no aplicada: se emitió como licencia nueva."
+                                    } else {
+                                        null
+                                    },
+                                    success = "Licencia generada.",
+                                    shareLaunched = true,
+                                    canRegister = false,
+                                )
+                            }
+                            if (isCurrentGeneration(generation, current.raw, tx)) {
+                                _share.emit(
+                                    when (spvi.via) {
+                                        ViaSolicitud.WHATSAPP -> ShareEvent.WhatsApp(spvi.telefono, emitida.mensaje)
+                                        ViaSolicitud.SMS -> ShareEvent.Sms(spvi.telefono, emitida.mensaje)
+                                    }
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    val req = current.solicitud ?: return@launch
+                    when (val r = generate(
+                        req,
+                        paymentConfirmed = true,
+                        diasAdicionales = current.diasRemanentes,
+                        txNumber = tx,
+                    )) {
+                        is Outcome.Err -> if (isCurrentGeneration(generation, current.raw, tx)) {
+                            _ui.update { it.copy(error = r.error.userMessage) }
+                        }
+                        is Outcome.Ok -> {
+                            if (!isCurrentGeneration(generation, current.raw, tx)) return@launch
+                            val (lic, enc) = r.value
+                            val total = lic.secundarias?.let { PrecioTabla.total(lic.type, it) }
+                                ?: PrecioTabla.total(lic.type, 0)
+                            val body = LicenseMessage.build(
+                                appName = lic.appName,
+                                tipo = lic.type,
+                                secundarias = lic.secundarias,
+                                total = total,
+                                licenseId = lic.id,
+                                envelope = enc,
+                                codigoLicencia = lic.codigoCorto,
+                            )
+                            _ui.update {
+                                it.copy(
+                                    encryptedLicense = enc,
+                                    shareBody = body,
+                                    pending = lic,
+                                    success = "Licencia generada: ${lic.codigoCorto ?: lic.id}",
+                                    shareLaunched = true,
+                                    canRegister = false,
+                                )
+                            }
+                            if (isCurrentGeneration(generation, current.raw, tx)) {
+                                _share.emit(
+                                    when (req.effectiveChannel) {
+                                        ViaSolicitud.WHATSAPP -> ShareEvent.WhatsApp(req.effectivePhone, body)
+                                        ViaSolicitud.SMS -> ShareEvent.Sms(req.effectivePhone, body)
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                if (generation == generationGeneration) {
+                    _ui.update { it.copy(error = AppError.Generic.userMessage) }
+                }
+            } finally {
+                if (generation == generationGeneration) {
+                    _ui.update { it.copy(loading = false) }
+                    generationJob = null
                 }
             }
         }
     }
 
-    private fun generarSpvi(sol: SolicitudSpviV2) {
-        viewModelScope.launch {
-            _ui.update { it.copy(loading = true, error = null, success = null) }
-            when (val r = emitirSpvi(sol, true)) {
-                is Outcome.Err -> _ui.update { it.copy(loading = false, error = r.error.userMessage) }
-                is Outcome.Ok -> {
-                    val emitida = r.value
-                    val lic = emitida.licencia
-                    _ui.update {
-                        it.copy(
-                            loading = false,
-                            encryptedLicense = lic.codigoCorto,
-                            shareBody = emitida.mensaje,
-                            pending = lic,
-                            renuevaAviso = if (emitida.renuevaIgnorada) {
-                                "Renovación no aplicada: se emitió como licencia nueva."
-                            } else {
-                                null
-                            },
-                            success = "Licencia generada.",
-                            shareLaunched = true,
-                            canRegister = false,
-                        )
-                    }
-                    _share.emit(
-                        when (sol.via) {
-                            ViaSolicitud.WHATSAPP -> ShareEvent.WhatsApp(sol.telefono, emitida.mensaje)
-                            ViaSolicitud.SMS -> ShareEvent.Sms(sol.telefono, emitida.mensaje)
-                        }
-                    )
-                }
-            }
-        }
+    private fun isCurrentGeneration(generation: Long, raw: String, tx: String): Boolean {
+        val state = _ui.value
+        return generation == generationGeneration &&
+            state.raw == raw &&
+            state.txCliente.trim() == tx &&
+            state.paid &&
+            state.txMatch
     }
 
     fun onReturnedFromShare() {
@@ -355,10 +419,11 @@ class GeneratorViewModel @Inject constructor(
     }
 
     fun registerNow() {
-        val lic = _ui.value.pending ?: return
-        if (!_ui.value.canRegister) return
+        val current = _ui.value
+        val lic = current.pending ?: return
+        if (!current.canRegister || current.loading) return
+        _ui.update { it.copy(loading = true, error = null) }
         viewModelScope.launch {
-            _ui.update { it.copy(loading = true) }
             when (val r = register(lic)) {
                 is Outcome.Ok -> _ui.update {
                     it.copy(

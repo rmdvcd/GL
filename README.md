@@ -65,14 +65,14 @@ terminar en `: ok`. Sin eso, la app pinta pero la BD no abre.
 
 Clean Architecture + MVVM.
 
-`presentation` → `domain` ← `data` + `security`  
+`presentation` → `domain` ← `data` + `security`
 Hilt, Compose Material 3 (oscuro forzado), Navigation, Room+SQLCipher.
 
 `core/AppRuntime.kt` carga `libsqlcipher.so` e instala BouncyCastle. Lo invoca `GlApplication.onCreate()` **y** `ProvideModule.db()`: el AAR `sqlcipher-android` no autocarga su `.so` y `GlApplication` no corre en los tests instrumentados.
 
 ## Contrato criptográfico v1
 
-`alg` = `ECIES-P256-AES256GCM-v1`  
+`alg` = `ECIES-P256-AES256GCM-v1`
 Curva P-256, HKDF-SHA256, AES-256-GCM (IV 12, tag 16), ECDSA SHA-256.
 
 ### Envelope JSON (solicitud y licencia)
@@ -90,21 +90,21 @@ Curva P-256, HKDF-SHA256, AES-256-GCM (IV 12, tag 16), ECDSA SHA-256.
 }
 ```
 
-**AAD solicitud:** `v|alg|epk|kid`  
-**AAD licencia:** `1|ECIES-P256-AES256GCM-v1|<licenseId>`  
-**Transcript firmado:** `epkDER || iv || ct || tag`  
-Solicitud: firma con la clave efímera del cliente (también se acepta la de firma de GL).  
+**AAD solicitud:** `CryptoEngine.canonical(listOf(v.toString(), alg, epkBase64, kid))`.
+**AAD licencia:** `CryptoEngine.canonical(listOf(v.toString(), alg, licenseId))`. Cada campo se codifica como UTF-8 y va precedido por su longitud de 4 bytes big-endian; no se concatenan campos con `|`. Esos bytes pertenecen al contrato v1 y no deben cambiarse sin versionar.
+**Transcript firmado:** `epkDER || iv || ct || tag`
+Solicitud: firma con la clave efímera del cliente (también se acepta la de firma de GL).
 Licencia: firma con ECDSA de GL en Keystore.
 
 ### Solicitud (plaintext)
 
-Campos JSON: `v`, `nombre`, `apellidos`, `ci`, `via` (`WHATSAPP`\|`SMS`), `telefono` (E.164), `deviceId`, `appName` (obligatorio), `dispositivo` (modelo de hardware), `usuario` (objeto anidado), `secundarias` (opcional entero 0–10 en otras apps con flujo v1; ausente/`null` = no indicado), `tipo` (`MENSUAL`\|`SEMESTRAL`\|`ANUAL`\|`PERPETUA`), `solicitadaEn` (ISO-8601 Instant, con expiración máxima de 72 horas), `nonce`, `devicePub` (SPKI P-256 obligatorio). SPVI ya no usa este formato: ver `CONTEXTO_LICENCIAS.md` (sección SPVI 0.23.1).
+Campos JSON: `v`, `nombre`, `apellidos`, `ci`, `via` (`WHATSAPP`\|`SMS`), `telefono` (E.164), `deviceId`, `appName` (obligatorio), `dispositivo` (modelo de hardware), `usuario` (objeto anidado), `secundarias` (opcional entero 0–10 en otras apps con flujo v1; ausente/`null` = no indicado), `tipo` (`MENSUAL`\|`SEMESTRAL`\|`ANUAL`\|`PERPETUA`), `solicitadaEn` (ISO-8601 Instant; hasta 72 horas de antigüedad y 2 horas como máximo en el futuro), `nonce`, `devicePub` (SPKI EC P-256 obligatorio y parseado; GL no verifica atestación de hardware ni posesión de la privada). SPVI ya no usa este formato: ver `CONTEXTO_LICENCIAS.md` (sección SPVI 0.23.1).
 
-`devicePub` es **obligatorio** (mitigación Vuln 5, Opción A): garantiza confidencialidad exclusiva hacia el hardware cliente.
+`devicePub` es **obligatorio** en la validación del flujo v1. La licencia se cifra hacia la clave pública aportada; eso no demuestra posesión, almacenamiento en hardware ni vínculo criptográfico entre esa clave y `deviceId`.
 
 ### Licencia (plaintext)
 
-Todo lo anterior más `id` (UUID), `emitidaEn`, `venceEn` (null si perpetua), `estado` (`ACTIVA`\|`VENCIDA`\|`REVOCADA`\|`PERPETUA`), `licenciaObtenida` (código de 16 caracteres `XXXX-XXXX-XXXX-XXXX`), `secundarias` (otras apps con flujo v1; su clave se omite si es `null`), `periodoRestante` (días sumados por rollover si había licencia activa previa), `codigoCorto` (igual a `licenciaObtenida`), `txNumber` (número de comprobante bancario deduplicado), `nonce` nuevo. `precioCobrado` no viaja en el JSON firmado: vive solo en memoria y en Room. SPVI 0.23.1 no emite licencia larga: ver `CONTEXTO_LICENCIAS.md`.
+Todo lo anterior más `id` (UUID), `emitidaEn`, `venceEn` (null si perpetua), `estado` (`ACTIVA`\|`VENCIDA`\|`REVOCADA`\|`PERPETUA`), `licenciaObtenida` (código de 16 caracteres `XXXX-XXXX-XXXX-XXXX`), `secundarias` (otras apps con flujo v1; su clave se omite si es `null`), `periodoRestante` (días sumados por rollover si había licencia activa previa), `codigoCorto` (igual a `licenciaObtenida`), `txNumber` (comprobante comparado con las licencias ya registradas; la comprobación no reserva el número de forma atómica), `nonce` nuevo. `precioCobrado` no viaja en el JSON firmado: vive en memoria y Room, y el backup local `.glreg` lo conserva en metadatos separados, sin cambiar el payload de licencia. SPVI 0.23.1 no emite licencia larga: ver `CONTEXTO_LICENCIAS.md`.
 
 Vencimiento: +30 / +180 / +365 días desde emisión (reloj del dispositivo) más días remanentes acumulados si procede.
 
@@ -120,7 +120,7 @@ Room **v6**, SQLCipher, tablas `licenses` y `contact_methods`:
 
 `contact_methods`: `id PK` (`"$kind:$value"`, deduplica por REPLACE), `kind` (`card`|`phone`), `value`, `createdAtIso`. Sin CVC en ningún sitio.
 
-v1→v2 añade `appName TEXT NOT NULL DEFAULT ''` en `GlMigrations.M_1_2`. v2→v3 crea `contact_methods` en `GlMigrations.M_2_3`. v3→v4 añade `secundarias INTEGER` y `precioCobrado INTEGER`, ambos opcionales, en `GlMigrations.M_3_4`. v4→v5 añade `codigoCorto TEXT` (opcional, código SPVI2) en `GlMigrations.M_4_5`. v5→v6 añade `txNumber TEXT` (opcional, deduplicación de pagos) en `GlMigrations.M_5_6`.
+v1→v2 añade `appName TEXT NOT NULL DEFAULT ''` en `GlMigrations.M_1_2`. v2→v3 crea `contact_methods` en `GlMigrations.M_2_3`. v3→v4 añade `secundarias INTEGER` y `precioCobrado INTEGER`, ambos opcionales, en `GlMigrations.M_3_4`. v4→v5 añade `codigoCorto TEXT` (opcional, código SPVI2) en `GlMigrations.M_4_5`. v5→v6 añade `txNumber TEXT` (opcional) en `GlMigrations.M_5_6`. No hay índice único sobre `txNumber`; el emisor comprueba los números contra licencias guardadas, pero la reserva no es atómica y queda pendiente mejorarla sin romper datos históricos.
 
 Orden: `issuedAtIso DESC`. Migraciones: `GlMigrations.ALL` contiene `M_1_2`, `M_2_3`, `M_3_4`, `M_4_5` y `M_5_6`; no se usa migración destructiva. Passphrase 32 B envuelta con AES-GCM del Keystore (`AAD=gl-db-v1`), ciphertext en `gl_db_meta`. El IV lo genera el Keystore (`setRandomizedEncryptionRequired(true)`) y se persiste en `w_iv`.
 
@@ -131,9 +131,9 @@ Exportación: `docs/GLREG.md`.
 Ver también `docs/MANUAL.md`.
 
 1. **Generador** (arranque): con la app visible y con foco de ventana, se lee el portapapeles si parece un envelope o un código `SPVIR1:`. También puedes pegar el texto a mano o usar el botón **Pegar**. El panel y la casilla “Pago realizado” solo aparecen si la solicitud es válida.
-2. En SPVI 0.23.1 se muestra el panel con los datos descifrados y el desglose de precio (sin corrección de secundarias). Marca el pago, pulsa **Generar licencia**. Abre WhatsApp (`wa.me`) o SMS solo con texto: el mensaje de respuesta (datos + renglón en blanco + código `SPVI2:`), que queda además en un cuadro de solo lectura con botón **Copiar mensaje**. En otras apps con flujo v1 el mensaje sigue siendo de 3 líneas: cobro, `ID:` y envelope.
+2. En SPVI 0.23.1 se muestra el panel con los datos descifrados y el desglose de precio (sin corrección de secundarias). El caso de uso vuelve a validar la solicitud y limita su fecha a 72 horas de antigüedad / 2 horas futura antes de emitir. La casilla de pago es una confirmación manual: GL solo compara los dos números de transacción introducidos, no consulta al banco ni verifica el pago. Marca la casilla y pulsa **Generar licencia**. Abre WhatsApp (`wa.me`) o SMS solo con texto: el mensaje de respuesta (datos + renglón en blanco + código `SPVI2:`), que queda además en un cuadro de solo lectura con botón **Copiar mensaje**. En otras apps con flujo v1 el mensaje sigue siendo de 3 líneas: cobro, `ID:` y envelope.
 3. Al volver de la app de compartir, pulsa **Registrar**. La licencia entra en Room con estado `ACTIVA`, con secundarias y precio cobrado cuando corresponden (SPVI 0.23.1 guarda además el código corto).
-4. **Registro:** lista con countdown 1 Hz (solo con la pestaña visible). Cada fila muestra secundarias y precio cobrado cuando existen. Toque → detalle con ambas filas. Importar/Exportar `.glreg` con el selector de documentos (SAF).
+4. **Registro:** lista con countdown 1 Hz (solo con la pestaña visible). Cada fila muestra secundarias y precio cobrado cuando existen. Toque → detalle con ambas filas. Importar/Exportar `.glreg` con el selector de documentos (SAF); la lectura de importación está limitada a 32 MiB.
 5. **Contacto** (entre Generador y Registro): dos desplegables editables con botón Añadir — tarjetas/cuentas y teléfonos — persistidos en `contact_methods`. El botón **Copiar** deja en el portapapeles el encabezado `Tarjeta y numero a confirmar para compra de la licencia` + tarjeta + teléfono, en 3 líneas. Sin CVC en ningún sitio.
 6. **Claves:** las dos claves públicas de *este* teléfono (cifrado y firma) en Base64 SPKI con huella SHA-256, para fijarlas como ancla de confianza en la app cliente. Ver `CONTEXTO_LICENCIAS.md`.
 
@@ -145,25 +145,26 @@ Sin permisos propios. Intents a WhatsApp/SMS. Sin almacenamiento amplio.
 - Root / malware privilegiado gana. `FLAG_SECURE` no para root.
 - StrongBox no está en todos los SoC → fallback TEE.
 - ECDH en Keystore con `PURPOSE_AGREE_KEY` es API 31+; por debajo el par EC se crea con otros propósitos (limitación Android).
-- Sin `devicePub`, la licencia no es exclusiva del dispositivo cliente.
+- `devicePub` es obligatorio y se valida como EC P-256, pero GL no prueba posesión ni atestación de hardware y no lo vincula a `deviceId`; por tanto, no garantiza exclusividad contra un cliente que copie esa clave.
 - WhatsApp/SMS no son canales confidenciales (metadatos visibles).
 - No hay revocación remota. `REVOCADA` es estado local.
+- La frescura usa el reloj de pared del emisor (máximo 72 h y 2 h de desfase futuro); no existe watermark monotónico ni consumo persistente del nonce. Por tanto, el reloj puede retroceder y una solicitud no queda protegida contra replay por nonce.
 - Reloj de vencimiento = reloj del aparato.
-- `.glreg` **no** se abre en otro teléfono (clave de firma Keystore).
+- `.glreg` exporta formato local v2 e importa el formato legacy v1; ambos usan claves AES y de firma del Keystore local, así que no son portables a otro teléfono.
 - **No hay autenticación.** Se retiró el PIN y la biometría. Mientras la app está abierta, las claves no exigen `userAuthenticationRequired`, así que un atacante con el teléfono desbloqueado llega al registro. `FLAG_SECURE` sigue activo.
 - El IV de la BD lo genera el Keystore, no el código (`setRandomizedEncryptionRequired(true)`).
 - `CryptoEngine` expone `pbkdf2HmacSha256` y `constantTimeEquals` como primitivas genéricas. No hay Argon2id: ya no hay PIN que derivar.
 - Tests de Room in-memory **no** usan SQLCipher.
-- El happy path completo (envelope válido → generar → registrar) **no tiene test verde**: `LicenseGenerationE2ETest` falla esperando `"Solicitud válida"`, causa sin diagnosticar. El camino de error sí está verificado a mano (`La solicitud no es válida.`).
+- `LicenseGenerationE2ETest` sigue marcado `@Ignore`: su fixture ya incluye `devicePub` y ambos números de transacción, pero el recorrido real con Keystore/Room requiere ejecutarse en un runner Android compatible. No se afirma que el test ni el build estén verificados en esta auditoría.
 - Uso previsto: licenciar **tu** software, no el de terceros.
 
 ## Tests y docs
 
-- `docs/TESTING.md` — cómo correr tests  
-- `GUIA_IA_TESTS_USB.md` — tests en dispositivo USB (OpenCode Desktop)  
-- `CONTEXTO_LICENCIAS.md` — contrato para IAs y apps cliente  
-- `SECURITY.md` — cripto y amenazas  
-- `docs/MANUAL.md` — usuario final  
-- `docs/GLREG.md` — formato de archivo  
+- `docs/TESTING.md` — cómo correr tests
+- `GUIA_IA_TESTS_USB.md` — tests en dispositivo USB (OpenCode Desktop)
+- `CONTEXTO_LICENCIAS.md` — contrato para IAs y apps cliente
+- `SECURITY.md` — cripto y amenazas
+- `docs/MANUAL.md` — usuario final
+- `docs/GLREG.md` — formato de archivo
 - `docs/ARCHITECTURE.md` / `INTEGRATION.md` / `docs/FILETREE.md`
 - `AGENTS.md` — estado verificado del repo, gotchas y trampas de tooling

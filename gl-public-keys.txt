@@ -2,9 +2,9 @@
 GL — CLAVES PÚBLICAS PARA LA APP CLIENTE (arena.ai)
 ================================================================================
 
-Generado el      : 2026-09-30
+Generado el      : 2026-10-05 (último snapshot documentado)
 Paquete GL       : dev.gl.license.debug
-Dispositivo      : serial 4bc9f8f3 (Android 15 / API 35, arm64-v8a)
+Dispositivo      : referencia Android 15 / API 35, arm64-v8a (serial omitido)
 Versión contrato : 1
 Origen           : pestaña "Claves" de la app GL, y verificado leyendo el
                    Android Keystore directamente por alias.
@@ -33,10 +33,10 @@ Algoritmo  : EC P-256 (secp256r1 / prime256v1), acuerdo de clave ECDH
 Formato    : SPKI DER, codificado en Base64 (estándar, sin cabeceras)
 
 Base64:
-MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEx8qrf/vWtLqwfVt2BiCMFpDinK58+T503G7wzuk9IkZckEVgnqZPDbWrymDIUQZ3OWII8wUAykzJ3zL7drpj5g==
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE+bzI3jdfnqVmHOj3+O0dksDlQTJtdGLA1O0KP+dctJW3urECwUDhLEnS1DDu7cVeaVZZkdZCU8PuxGCcPw/hJA==
 
 SHA-256 de la clave pública (huella, 16 grupos de 4 hex):
-sha256:7b51:9e55:7de4:87a8:7824:4fbb:1497:0cc7:2a52:d40e:bed3:d919:0c37:28a4:b533:538c
+sha256:2a3f:9fce:b105:7ee8:563c:04cd:e4d1:00e7:058b:c7b8:0410:024b:e658:efe1:5905:666d
 
 --------------------------------------------------------------------------------
 CLAVE DE FIRMA (ECDSA)
@@ -48,10 +48,10 @@ Algoritmo  : EC P-256 (secp256r1 / prime256v1), firmas ECDSA
 Formato    : SPKI DER, codificado en Base64 (estándar, sin cabeceras)
 
 Base64:
-MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE+UpBZNnTcsbL5yR5LQRD1qATSub6tV7dgaVKNgXjFUbJFbxWmUQWOQvqsOBZmt7bKDdu3iLW02Z/RtiPfa3OWQ==
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE1LFKFD7Af1xhbza5CrD7ArwOwq5h4qG70edEp54zozXoUa/r7P7xRQwwV82rXcy0mPznM3TNMk8wGxYCwR7ubg==
 
 SHA-256 de la clave pública (huella, 16 grupos de 4 hex):
-sha256:8a91:bcfb:19dc:af1b:af6e:0bb7:c82a:9410:e9b5:aa1d:fea0:cab8:241c:52d1:bcbd:6888
+sha256:58d4:3aac:6f1b:099a:e86c:4375:b7c7:ffb5:8631:2399:246c:1f26:f861:e302:9c83:8c4e
 
 --------------------------------------------------------------------------------
 PAYLOAD JSON PARA PEGAR DIRECTO EN EL CÓDIGO
@@ -61,10 +61,10 @@ nombre de cada campo es explícito, así que no hay ambigüedad de asignación.
 
 {
   "contractVersion": 1,
-  "encryptionKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEx8qrf/vWtLqwfVt2BiCMFpDinK58+T503G7wzuk9IkZckEVgnqZPDbWrymDIUQZ3OWII8wUAykzJ3zL7drpj5g==",
-  "encryptionFingerprint": "sha256:7b51:9e55:7de4:87a8:7824:4fbb:1497:0cc7:2a52:d40e:bed3:d919:0c37:28a4:b533:538c",
-  "signingKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE+UpBZNnTcsbL5yR5LQRD1qATSub6tV7dgaVKNgXjFUbJFbxWmUQWOQvqsOBZmt7bKDdu3iLW02Z/RtiPfa3OWQ==",
-  "signingFingerprint": "sha256:8a91:bcfb:19dc:af1b:af6e:0bb7:c82a:9410:e9b5:aa1d:fea0:cab8:241c:52d1:bcbd:6888"
+  "encryptionKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE+bzI3jdfnqVmHOj3+O0dksDlQTJtdGLA1O0KP+dctJW3urECwUDhLEnS1DDu7cVeaVZZkdZCU8PuxGCcPw/hJA==",
+  "encryptionFingerprint": "sha256:2a3f:9fce:b105:7ee8:563c:04cd:e4d1:00e7:058b:c7b8:0410:024b:e658:efe1:5905:666d",
+  "signingKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE1LFKFD7Af1xhbza5CrD7ArwOwq5h4qG70edEp54zozXoUa/r7P7xRQwwV82rXcy0mPznM3TNMk8wGxYCwR7ubg==",
+  "signingFingerprint": "sha256:58d4:3aac:6f1b:099a:e86c:4375:b7c7:ffb5:8631:2399:246c:1f26:f861:e302:9c83:8c4e"
 }
 
 --------------------------------------------------------------------------------
@@ -89,8 +89,8 @@ Para comprobarla:
   3. Pásalo a hex en minúsculas y agrúpalo de 4 en 4, separado por ':'.
   4. Antepón "sha256:".
 
-Las dos huellas de este fichero se han recalculado y coinciden con las que
-muestra la app.
+Las huellas de este snapshot se han recalculado y coinciden con las claves
+publicadas en CONTEXTO_LICENCIAS.md. Confírmalas siempre contra la app emisora actual.
 
 Ejemplo (Python):
 
@@ -102,6 +102,8 @@ Ejemplo (Python):
 --------------------------------------------------------------------------------
 NOTA SOBRE ESTE FICHERO
 --------------------------------------------------------------------------------
-Está fuera del repo de GL a propósito: son claves de un dispositivo concreto,
-no material del proyecto, y no deben acabar en control de versiones.
+Este es un snapshot documental de claves públicas de una instalación concreta.
+Puede quedar obsoleto al borrar datos, reinstalar o cambiar de dispositivo. La fuente
+de verdad es la pestaña Claves de la instalación emisora; compara las huellas antes
+de fijarlas en una app cliente. No contiene claves privadas.
 ================================================================================

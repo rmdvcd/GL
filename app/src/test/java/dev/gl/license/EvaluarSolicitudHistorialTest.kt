@@ -7,6 +7,7 @@ import dev.gl.license.domain.model.Licencia
 import dev.gl.license.domain.model.SolicitudLicencia
 import dev.gl.license.domain.model.TipoLicencia
 import dev.gl.license.domain.model.ViaSolicitud
+import dev.gl.license.domain.repository.LicenciaRepository
 import dev.gl.license.domain.repository.SecureClock
 import dev.gl.license.domain.usecase.EvaluacionHistorial
 import dev.gl.license.domain.usecase.EvaluarSolicitudHistorialUseCase
@@ -64,7 +65,7 @@ class EvaluarSolicitudHistorialTest {
         nationalId = ci,
         channel = ViaSolicitud.WHATSAPP,
         phone = phone,
-        tipo = tipo,
+        type = tipo,
         requestedAtIso = issuedIso,
         issuedAtIso = issuedIso,
         expiresAtIso = expiresIso,
@@ -239,5 +240,34 @@ class EvaluarSolicitudHistorialTest {
         val res = uc(req(tipo = TipoLicencia.ANUAL))
 
         assertThat(res).isInstanceOf(EvaluacionHistorial.RenovacionCambio::class.java)
+    }
+
+    @Test
+    fun falloAlLeerHistorialNoSeInterpretaComoSolicitudNueva() = runTest {
+        val repo = object : LicenciaRepository by MemLic() {
+            override suspend fun all(): List<Licencia> = error("fallo de almacenamiento")
+        }
+
+        val res = EvaluarSolicitudHistorialUseCase(repo, clock)(req())
+
+        assertThat(res).isInstanceOf(EvaluacionHistorial.ErrorEvaluacion::class.java)
+    }
+
+    @Test
+    fun fechaInvalidaEnLicenciaActivaBloqueaLaEvaluacion() = runTest {
+        val repo = MemLic()
+        repo.upsert(
+            lic(
+                id = "lic-activa-invalida",
+                tipo = TipoLicencia.MENSUAL,
+                status = EstadoLicencia.ACTIVA,
+                issuedIso = fixedNow.minusSeconds(10 * 86400L).toString(),
+                expiresIso = "fecha-invalida",
+            )
+        )
+
+        val res = EvaluarSolicitudHistorialUseCase(repo, clock)(req())
+
+        assertThat(res).isInstanceOf(EvaluacionHistorial.ErrorEvaluacion::class.java)
     }
 }

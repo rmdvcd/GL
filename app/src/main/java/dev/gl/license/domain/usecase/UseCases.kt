@@ -37,7 +37,11 @@ class ValidarSolicitudUseCase @Inject constructor(
         return when (val d = crypto.descifrarSolicitud(raw)) {
             is Outcome.Err -> d
             is Outcome.Ok -> {
-                val now = try { Instant.parse(clock.nowIso()) } catch (_: Exception) { null }
+                val now = try {
+                    Instant.parse(clock.nowIso())
+                } catch (_: Exception) {
+                    return Outcome.Err(AppError.ClockFailure)
+                }
                 when (val v = FieldValidator.validateRequest(d.value, now)) {
                     is Outcome.Err -> v
                     is Outcome.Ok -> Outcome.Ok(SolicitudValidada(v.value, raw))
@@ -61,11 +65,10 @@ class GenerarLicenciaUseCase @Inject constructor(
             override suspend fun getById(id: String): Licencia? = null
             override suspend fun merge(incoming: List<Licencia>) = Outcome.Ok(0)
             override suspend fun all(): List<Licencia> = emptyList()
-            override suspend fun isTransactionUsed(txNumber: String) = false
         }
     )
 
-    operator fun invoke(
+    suspend operator fun invoke(
         req: SolicitudLicencia,
         paymentConfirmed: Boolean,
         secundarias: Int? = null,
@@ -75,23 +78,39 @@ class GenerarLicenciaUseCase @Inject constructor(
         codigoFactory: () -> String = { LicenseCodeGenerator.generate() },
     ): Outcome<Pair<Licencia, String>> {
         if (!paymentConfirmed) return Outcome.Err(AppError.InvalidPayload)
-        val cleanTx = txNumber?.trim()
-        if (!cleanTx.isNullOrBlank() && kotlinx.coroutines.runBlocking { licencias.isTransactionUsed(cleanTx) }) {
-            return Outcome.Err(AppError.TransactionAlreadyUsed(cleanTx))
+        val cleanTx = txNumber?.trim()?.takeIf { it.isNotEmpty() }
+        if (cleanTx != null) {
+            if (cleanTx.length > 128 || cleanTx.any { it.isISOControl() }) {
+                return Outcome.Err(AppError.InvalidPayload)
+            }
+            val used = try {
+                licencias.isTransactionUsed(cleanTx)
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                return Outcome.Err(AppError.RegistryFailure)
+            }
+            if (used) return Outcome.Err(AppError.TransactionAlreadyUsed(cleanTx))
         }
         if (req.appName == "SPVI" || req.deviceId.startsWith("SPVI:")) {
             return Outcome.Err(AppError.SpviDesactualizada)
         }
-        val now = try { Instant.parse(clock.nowIso()) } catch (_: Exception) { null }
+        val issued = try {
+            clock.nowIso().also { Instant.parse(it) }
+        } catch (_: Exception) {
+            return Outcome.Err(AppError.ClockFailure)
+        }
+        val now = Instant.parse(issued)
         when (val v = FieldValidator.validateRequest(req, now)) {
             is Outcome.Err -> return v
             is Outcome.Ok -> Unit
         }
+        val devicePubPem = req.devicePublicKeyPem?.takeIf { it.isNotBlank() }
+            ?: return Outcome.Err(AppError.DevicePubRequired)
         when (val s = Secundarias.validar(req.appName, req.deviceId, secundarias)) {
             is Outcome.Err -> return s
             is Outcome.Ok -> Unit
         }
-        val issued = clock.nowIso()
         val exp = if (req.type == TipoLicencia.PERPETUA) {
             null
         } else {
@@ -134,7 +153,7 @@ class GenerarLicenciaUseCase @Inject constructor(
             nonce = CryptoEngine.b64(CryptoEngine.randomBytes(16)),
             txNumber = cleanTx,
         )
-        return when (val enc = crypto.cifrarLicencia(license, req.devicePublicKeyPem)) {
+        return when (val enc = crypto.cifrarLicencia(license, devicePubPem)) {
             is Outcome.Err -> enc
             is Outcome.Ok -> Outcome.Ok(license to enc.value)
         }
@@ -147,16 +166,22 @@ class RegistrarLicenciaUseCase @Inject constructor(
     private val licencias: LicenciaRepository,
     private val registro: RegistroRepository,
     private val clock: SecureClock,
-) {    suspend operator fun invoke(license: Licencia): Outcome<Unit> {
+) {
+    suspend operator fun invoke(license: Licencia): Outcome<Unit> {
         when (val v = FieldValidator.validateLicense(license)) {
             is Outcome.Err -> return v
             is Outcome.Ok -> Unit
+        }
+        val registeredAt = try {
+            clock.nowIso().also { Instant.parse(it) }
+        } catch (_: Exception) {
+            return Outcome.Err(AppError.ClockFailure)
         }
         when (val u = licencias.upsert(license)) {
             is Outcome.Err -> return u
             is Outcome.Ok -> Unit
         }
-        return registro.registrar(RegistroLicencia(license, clock.nowIso()))
+        return registro.registrar(RegistroLicencia(license, registeredAt))
     }
 }
 
@@ -172,13 +197,23 @@ class ImportarRegistroUseCase @Inject constructor(
         return when (val parsed = crypto.importar(bytes)) {
             is Outcome.Err -> parsed
             is Outcome.Ok -> {
-                val n = licencias.merge(parsed.value)
-                if (n is Outcome.Ok) {
-                    registro.mergePorId(
-                        parsed.value.map { RegistroLicencia(it, clock.nowIso()) }
-                    )
+                val registeredAt = try {
+                    clock.nowIso().also { Instant.parse(it) }
+                } catch (_: Exception) {
+                    return Outcome.Err(AppError.ClockFailure)
                 }
-                n
+                val importedCount = when (val mergedLicenses = licencias.merge(parsed.value)) {
+                    is Outcome.Err -> return mergedLicenses
+                    is Outcome.Ok -> mergedLicenses.value
+                }
+                when (
+                    val mergedRegistry = registro.mergePorId(
+                        parsed.value.map { RegistroLicencia(it, registeredAt) },
+                    )
+                ) {
+                    is Outcome.Err -> mergedRegistry
+                    is Outcome.Ok -> Outcome.Ok(importedCount)
+                }
             }
         }
     }
@@ -190,7 +225,13 @@ class ExportarRegistroUseCase @Inject constructor(
     private val crypto: SeguridadRepository,
     private val licencias: LicenciaRepository,
 ) {
-    suspend operator fun invoke(): Outcome<ByteArray> = crypto.exportar(licencias.all())
+    suspend operator fun invoke(): Outcome<ByteArray> = try {
+        crypto.exportar(licencias.all())
+    } catch (cancelled: kotlinx.coroutines.CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        Outcome.Err(AppError.ExportFailure)
+    }
 }
 
 typealias ExportRegistryUseCase = ExportarRegistroUseCase

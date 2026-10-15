@@ -13,7 +13,9 @@ interface LicenciaRepository {
     suspend fun getById(id: String): Licencia?
     suspend fun merge(incoming: List<Licencia>): Outcome<Int>
     suspend fun all(): List<Licencia>
-    suspend fun isTransactionUsed(txNumber: String): Boolean = false
+    /** Implementaciones deben consultar el almacenamiento persistente; fallar debe bloquear emisión. */
+    suspend fun isTransactionUsed(txNumber: String): Boolean =
+        throw UnsupportedOperationException("transaction-check-not-supported")
 }
 
 typealias LicenseRepository = LicenciaRepository
@@ -27,7 +29,7 @@ interface RegistroRepository {
 
 interface SeguridadRepository {
     fun descifrarSolicitud(raw: String): Outcome<SolicitudLicencia>
-    fun cifrarLicencia(license: Licencia, devicePubPem: String?): Outcome<String>
+    fun cifrarLicencia(license: Licencia, devicePubPem: String): Outcome<String>
     fun exportar(licencias: List<Licencia>): Outcome<ByteArray>
     fun importar(bytes: ByteArray): Outcome<List<Licencia>>
 }

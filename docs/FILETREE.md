@@ -1,58 +1,56 @@
-# Árbol de archivos
+# Árbol del proyecto
 
-```
+Vista **curada, no exhaustiva**; las clases de prueba se agrupan para evitar que esta lista quede desfasada con cada test nuevo.
+
+```text
 GL/
+├── AGENTS.md
 ├── README.md
 ├── SECURITY.md
 ├── CONTEXTO_LICENCIAS.md
+├── SISTEMA_LICENCIAS_CLIENTES.md
 ├── GUIA_IA_TESTS_USB.md
-├── AGENTS.md
-├── settings.gradle.kts
+├── AUDIT_2026-10-14.md
 ├── build.gradle.kts
+├── settings.gradle.kts
 ├── gradle.properties
-├── gradle/libs.versions.toml
+├── gradle/
+│   ├── libs.versions.toml
+│   └── wrapper/gradle-wrapper.properties
 ├── docs/
 │   ├── ARCHITECTURE.md
-│   ├── DESIGN_SYSTEM.md
 │   ├── FILETREE.md
 │   ├── GLREG.md
 │   ├── INTEGRATION.md
-│   ├── MANUAL.md
-│   ├── RELEASE.md
 │   ├── REVIEW.md
 │   ├── TESTING.md
-│   ├── UI_AUDIT_FASE1.md
-│   └── UI_UX_IX.md
-├── app/src/main/java/dev/gl/license/
-│   ├── GlApplication.kt
-│   ├── core/{AppError.kt,AppRuntime.kt,Di.kt,SecureClockImpl.kt}
-│   ├── domain/model/Modelos.kt
-│   ├── domain/repository/Repositories.kt
-│   ├── domain/usecase/{Validators.kt,UseCases.kt}
-│   ├── data/local/{Db.kt,Migrations.kt,LicenseRepositoryImpl.kt,RegistroRepositoryImpl.kt}
-│   ├── data/mapper/Mappers.kt
-│   ├── security/{KeystoreManager.kt,CryptoEngine.kt,CryptoGatewayImpl.kt,HybridBox.kt,RegistryPack.kt,EnvelopeValidator.kt,SecureUi.kt,ClientRequestHelper.kt}
-│   └── presentation/
-│       ├── MainActivity.kt
-│       ├── components/GlComponents.kt
-│       ├── navigation/Routes.kt
-│       ├── theme/Theme.kt
-│       ├── generator/{GeneratorScreen.kt,GeneratorViewModel.kt}
-│       └── registry/{RegistryScreen.kt,RegistryViewModel.kt,DetailScreen.kt,RegistryCountdown.kt}
-├── app/src/test/java/dev/gl/license/
-│   ├── CryptoEngineTest.kt
-│   ├── DomainLayerTest.kt
-│   ├── EdgeCasesTest.kt
-│   ├── FieldValidatorTest.kt
-│   ├── GeneratorViewModelTest.kt
-│   ├── InMemoryLicenseRepositoryTest.kt
-│   └── RegistryViewModelTest.kt
-└── app/src/androidTest/java/dev/gl/license/
-    ├── HiltTestRunner.kt
-    ├── KeystoreCryptoTest.kt
-    ├── MainFlowsTest.kt
-    ├── LicenseGenerationE2ETest.kt   # @Ignore
-    └── SmokeTest.kt
+│   └── …
+└── app/
+    ├── build.gradle.kts
+    ├── schemas/                     # esquemas Room exportados
+    └── src/
+        ├── main/java/dev/gl/license/
+        │   ├── core/                # errores, DI, reloj, inicialización
+        │   ├── data/local/          # Room, migraciones y repositorios
+        │   ├── data/mapper/
+        │   ├── domain/model/        # Models.kt, licencia, solicitud y tipos
+        │   ├── domain/repository/
+        │   ├── domain/usecase/      # validación, emisión e historial
+        │   ├── presentation/
+        │   │   ├── contact/
+        │   │   ├── generator/
+        │   │   ├── navigation/
+        │   │   ├── registry/
+        │   │   ├── theme/
+        │   │   └── trust/
+        │   └── security/            # CryptoEngine, HybridBox, SPVI, .glreg
+        ├── test/java/dev/gl/license/ # 27 clases; conteo anotado en docs/TESTING.md
+        └── androidTest/java/dev/gl/license/
+            ├── KeystoreCryptoTest.kt
+            ├── LicenseGenerationE2ETest.kt  # @Ignore hasta runner Android compatible
+            ├── MainFlowsTest.kt
+            ├── SmokeTest.kt
+            └── HiltTestRunner.kt
 ```
 
-`Modelos.kt` es el nombre real del fichero de modelos (no `Models.kt`). No existe `presentation/lock/`: el módulo de autenticación se retiró por completo.
+El modelo de dominio está en `app/src/main/java/dev/gl/license/domain/model/Models.kt` (no `Modelos.kt`). No existe `presentation/lock/`: el módulo de autenticación se retiró. El repositorio tampoco incluye `gradlew` ni `gradle-wrapper.jar`; ver `docs/TESTING.md` para el entorno de compilación y los límites actuales de verificación.

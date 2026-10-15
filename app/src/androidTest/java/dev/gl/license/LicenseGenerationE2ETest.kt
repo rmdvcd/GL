@@ -20,6 +20,7 @@ import dev.gl.license.domain.model.TipoLicencia
 import dev.gl.license.domain.model.ViaSolicitud
 import dev.gl.license.presentation.MainActivity
 import dev.gl.license.security.ClientRequestHelper
+import dev.gl.license.security.CryptoEngine
 import dev.gl.license.security.KeystoreManager
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
@@ -39,15 +40,12 @@ import javax.inject.Inject
  * telefono, asi que solo es valido aqui. No hay sobre de muestra en el repo porque
  * cualquier sobre de otro telefono no lo puede descifrar el Keystore de este.
  *
- * ESTADO: DESHABILITADO. El texto entra en el campo, pero la corrutina de
- * [dev.gl.license.presentation.generator.GeneratorViewModel.onRawChange] nunca publica
- * `solicitud`, asi que "Solicitud valida" no aparece y el primer `waitUntil` revienta.
- * `performTextInput` no es la causa: se ejecuta sin excepcion. El fallo real esta en
- * `ValidarSolicitudUseCase` (descifrado con el Keystore o deserializacion del plaintext),
- * no diagnosticado. Antes de reactivar hay que instrumentar ese caso y no tocar el
- * `contentDescription` de "Solicitud cifrada", del que dependen otros tests.
+ * ESTADO: ignorado hasta poder ejecutarse en un entorno Android compatible. El fixture
+ * construye una solicitud con `devicePub` y completa ambos números de transacción antes
+ * de confirmar el pago. En este entorno no se puede validar el recorrido real con Keystore,
+ * Room cifrado y `ActivityScenario`; no se afirma que el test pase.
  */
-@Ignore("Pendiente de diagnosticar ValidarSolicitudUseCase en happy path real")
+@Ignore("Pendiente de ejecución en un dispositivo/runner Android compatible")
 @HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
 class LicenseGenerationE2ETest {
@@ -71,6 +69,7 @@ class LicenseGenerationE2ETest {
     fun setUp() = hiltRule.inject()
 
     private fun mintEnvelope(): String {
+        val clientDeviceKeyPair = CryptoEngine.generateEphemeralP256()
         val request = SolicitudLicencia(
             version = CONTRACT_VERSION,
             firstName = "Juan",
@@ -83,6 +82,7 @@ class LicenseGenerationE2ETest {
             type = TipoLicencia.MENSUAL,
             requestedAtIso = Instant.now().toString(),
             nonce = "abcdefghijklmnop0123",
+            devicePublicKeyPem = CryptoEngine.b64(clientDeviceKeyPair.public.encoded),
         )
         return ClientRequestHelper.buildEnvelope(
             request,
@@ -106,6 +106,10 @@ class LicenseGenerationE2ETest {
         // Datos extraidos del sobre, visibles en la tarjeta.
         composeRule.onNodeWithText("Juan Perez Gomez").assertIsDisplayed()
         composeRule.onNodeWithText("12345678").assertIsDisplayed()
+
+        // Ambos números deben coincidir antes de habilitar la confirmación del pago.
+        composeRule.onNodeWithText("No. transacción (cliente)").performTextInput("TX-E2E-001")
+        composeRule.onNodeWithText("No. transacción (SMS)").performTextInput("TX-E2E-001")
 
         // Marcar el pago (Row toggleable con Role.Checkbox, sin contentDescription propio).
         composeRule.onNode(isToggleable() and hasText("Pago realizado")).performClick()

@@ -1,6 +1,6 @@
 # Guía para una IA: tests GL en dispositivo USB (OpenCode Desktop)
 
-Documento para un agente que corre **en el PC del usuario**, con **OpenCode Desktop**, un **teléfono o emulador Android conectado por USB** (o ADB inalámbrico ya emparejado) y el **Android SDK** instalado. Este texto no asume que el sandbox Arena tenga ADB.
+Documento para un agente que corre **en el PC del usuario**, con **OpenCode Desktop**, un **teléfono o emulador Android conectado por USB** (o ADB inalámbrico ya emparejado) y el **Android SDK** instalado. Este texto no asume que el sandbox Arena tenga ADB; sus instrucciones son para ejecutar allí y no certifican el estado de esta rama.
 
 ## Objetivo
 
@@ -55,8 +55,8 @@ Serial = primera columna de `adb devices`.
 
 | Suite | Criterio de éxito |
 |-------|-------------------|
-| `testDebugUnitTest` | Crypto, validación, ViewModels, Room in-memory (Robolectric, **sin** SQLCipher), countdown. Referencia actual: 29 tests / 7 suites / 0 fallos |
-| `connectedDebugAndroidTest` | `SmokeTest` y `MainFlowsTest`: al lanzar se ve **«Generador»** y **no** existe pantalla de lock; la bottom bar cambia entre «Generador» y «Registro». `KeystoreCryptoTest`: roundtrip AES-GCM con clave real de AndroidKeyStore |
+| `testDebugUnitTest` | Crypto, validación, ViewModels, Room in-memory (Robolectric, **sin** SQLCipher), SPVI y `.glreg`. El árbol actual tiene 167 métodos `@Test` anotados en 27 clases; este conteo estático no implica que se hayan ejecutado ni pasado. |
+| `connectedDebugAndroidTest` | Esperado: `SmokeTest` y `MainFlowsTest` recorren UI; `KeystoreCryptoTest` prueba AES-GCM con AndroidKeyStore. `LicenseGenerationE2ETest` sigue marcado `@Ignore`; ningún resultado de esta rama se presume sin correrla en un runner compatible. |
 
 Textos/TalkBack que **no** cambiar al “arreglar” fallos de UI test:
 
@@ -83,7 +83,7 @@ Informe: extraer `BUILD SUCCESSFUL` / `FAILED`, y de `app/build/reports/` el HTM
 
 ## Alcance opcional (solo si el usuario lo pide)
 
-Flujos manuales post-tests: arrancar la app, comprobar Generador y Registro, exportar/importar `.glreg`. **No hay envelope de muestra cifrado con el Keystore de ese teléfono en el repo**; no inventar uno que “debería” descifrar. `LicenseGenerationE2ETest` mintea el suyo y está en `@Ignore` por un fallo sin diagnosticar en `ValidarSolicitudUseCase`.
+Flujos manuales post-tests: arrancar la app, comprobar Generador y Registro, exportar/importar `.glreg`. **No hay envelope de muestra cifrado con el Keystore de ese teléfono en el repo**; no inventar uno que “debería” descifrar. `LicenseGenerationE2ETest` mintea el suyo, su fixture ahora incluye `devicePub` y transacciones coincidentes, pero sigue en `@Ignore` hasta ejecutarse en un runner compatible. Una ejecución anterior falló antes de la validación visible; no se afirma un resultado actual.
 
 ## Informe que debe devolver la IA
 

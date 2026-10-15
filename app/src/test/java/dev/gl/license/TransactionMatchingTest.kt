@@ -36,7 +36,7 @@ class TransactionMatchingTest {
         registro: RegistroRepository = MemReg(),
     ): GeneratorViewModel {
         return GeneratorViewModel(
-            ValidarSolicitudUseCase(validar),
+            ValidarSolicitudUseCase(validar, FixedClock),
             GenerarLicenciaUseCase(validar, FixedClock, licencias),
             RegistrarLicenciaUseCase(licencias, registro, FixedClock),
             object : SpviPuerta {

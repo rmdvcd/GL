@@ -34,14 +34,14 @@ Solo son claves públicas. No hay nada secreto en este JSON, y no por eso dejes 
 > **Aviso importante:** las claves son **de una instalación concreta**, no del producto GL. Android Keystore las genera localmente la primera vez que se usan. Si el usuario borra los datos de GL, reinstala la app o cambia de teléfono, sale un par distinto y **el cliente rechazará todo lo emitido con el par anterior**. Decide cómo vas a comunicar ese cambio (reinstalar el cliente con las claves nuevas suele ser lo más simple) antes de dar por cerrado el flujo.
 
 ### Clave Maestra de Desarrollo (`GLMK-PERM-MAXS-9999`) y Código de 16 Caracteres
-A partir de la versión actual, las licencias emitidas generan un código legible de 16 caracteres alfanuméricos agrupados en grupos de 4 (`XXXX-XXXX-XXXX-XXXX`). Para pruebas del desarrollador, la app expone al inicio de la pestaña **Claves** la clave maestra `GLMK-PERM-MAXS-9999`, que habilita de forma permanente y con el máximo de apps secundarias (10) cualquier app cliente.
+A partir de la versión actual, las licencias emitidas generan un código legible de 16 caracteres alfanuméricos agrupados en grupos de 4 (`XXXX-XXXX-XXXX-XXXX`). Para pruebas, la tarjeta de clave maestra solo aparece en builds `DEBUG`. El literal se genera solo en `BuildConfig` de debug; en release el campo queda vacío y `MasterKey.isMasterKey()` falla cerrado por defecto. Es una credencial de prueba, no un secreto ni un mecanismo apropiado para autorizar clientes en producción.
 Para la guía exhaustiva de implementación en apps cliente dirigida a otras IAs, ver `SISTEMA_LICENCIAS_CLIENTES.md`.
 
 ## Stack relevante
 
-Clean Architecture: `presentation` / `domain` / `data` / `security`.  
-Contrato v1: `CONTRACT_VERSION = 1` en `domain/model/Modelos.kt`.  
-Primitivas: `security/CryptoEngine.kt`, `HybridBox.kt`, `RegistryPack.kt`.  
+Clean Architecture: `presentation` / `domain` / `data` / `security`.
+Contrato v1: `CONTRACT_VERSION = 1` en `app/src/main/java/dev/gl/license/domain/model/Models.kt`.
+Primitivas: `security/CryptoEngine.kt`, `HybridBox.kt`, `RegistryPack.kt`.
 Referencia de armado de solicitud: `security/ClientRequestHelper.kt`.
 
 ## Contrato v1 (obligatorio para compatibilidad)
@@ -63,11 +63,11 @@ Transcript firmado (bytes concatenados): `epkDER || iv || ct || tag`.
 
 ### Envelope JSON (ida y vuelta)
 
-Campos: `v`, `alg`, `epk` (Base64 SPKI), `iv`, `ct`, `tag`, `sig`, `kid`.  
+Campos: `v`, `alg`, `epk` (Base64 SPKI), `iv`, `ct`, `tag`, `sig`, `kid`.
 kotlinx.serialization, `ignoreUnknownKeys = false`.
 
-**AAD GCM solicitud:** `v|alg|epk|kid` (el `epk` es el **mismo string** Base64 que en JSON).  
-**AAD GCM licencia:** `1|ECIES-P256-AES256GCM-v1|<licenseId>`.
+**AAD GCM solicitud:** `CryptoEngine.canonical(listOf(v.toString(), alg, epkBase64, kid))`.
+**AAD GCM licencia:** `CryptoEngine.canonical(listOf(v.toString(), alg, licenseId))`. `canonical` codifica cada campo como UTF-8 precedido por su longitud de 4 bytes big-endian. No es una concatenación separada por `|`; estos bytes son parte del contrato v1 y no deben cambiarse sin versionar.
 
 Verificación de solicitud en GL: firma de la efímera **o** de la clave de firma de GL. El cliente debe firmar con su **efímera**.
 
@@ -86,17 +86,19 @@ Verificación de solicitud en GL: firma de la efímera **o** de la clave de firm
 | `usuario` | Objeto anidado de datos de usuario | opcional/duplicado de raíz |
 | `secundarias` | entero 0–10, ausente o `null` | **opcional; otras apps, flujo v1** |
 | `tipo` | `MENSUAL` \| `SEMESTRAL` \| `ANUAL` \| `PERPETUA` | |
-| `solicitadaEn` | ISO-8601 Instant | `Instant.parse`, **máximo 72h antigüedad** |
+| `solicitadaEn` | ISO-8601 Instant | v1: ventana exacta de 72h de antigüedad / 2h futura; reloj de pared, no resistente a rollback |
 | `nonce` | 16–128 Base64-url-ish | |
 | `devicePub` | SPKI P-256 PEM/Base64 | **Obligatorio** (Opción A) |
 
 En el flujo v1 (otras apps), `secundarias` se ignora salvo que aplique a esa app; ausente o `null` significa «no indicado». `-1`, `11` o un valor no entero se rechazan con `InvalidSecundarias`. **SPVI ya no usa este flujo**: una solicitud v1 con `appName == "SPVI"` o `deviceId` con prefijo `SPVI:` se rechaza con «SPVI desactualizada: pide al cliente que instale SPVI 0.23.1 o posterior». Ver «SPVI 0.23.1» abajo.
 
-`devicePub` es **estrictamente obligatorio** (mitigación Vuln 5, Opción A): GL exige la clave pública del dispositivo cliente para cifrar la licencia de forma exclusiva hacia ese hardware (`AppError.DevicePubRequired` si falta o es inválida).
+`devicePub` es **estrictamente obligatorio** en la emisión v1 (`AppError.DevicePubRequired` si falta) y GL lo valida como clave EC P-256 parseable; la licencia se cifra hacia esa clave. Esto no demuestra posesión de su privada, almacenamiento en Android Keystore, atestación de hardware ni vínculo entre `devicePub` y `deviceId`.
+
+La validación temporal solo limita antigüedad (72 h) y adelanto (2 h) con el reloj de pared; el nonce no se consume ni persiste. Una misma solicitud puede volver a presentarse dentro de la ventana si el operador vuelve a confirmar el pago. El reloj local del emisor no es resistente a rollback.
 
 ### Cómo cifra el cliente la solicitud
 
-1. Par P-256 persistente en Android Keystore con respaldo de hardware (StrongBox/TEE).
+1. Recomendación para el cliente: par P-256 persistente en Android Keystore (StrongBox/TEE cuando esté disponible). GL solo recibe la clave pública; no valida su atestación ni confirma que el cliente use Keystore.
 2. Par efímero P-256.
 3. ECDH(efímera_priv, **pública ECDH de GL**).
 4. HKDF-SHA256(shared, salt=IV de 12 B, info=`gl-req-v1`) → AES-256.
@@ -108,10 +110,10 @@ Las dos claves (cifrado y firma) salen de la pestaña **Claves** de la propia ap
 
 ### Payload licencia (plaintext)
 
-Campos de la solicitud más: `id` (UUID), `emitidaEn`, `venceEn` (`null` si perpetua), `estado` (`ACTIVA`|`VENCIDA`|`REVOCADA`|`PERPETUA`), `licenciaObtenida` (código de 16 caracteres `XXXX-XXXX-XXXX-XXXX`), `secundarias`, `periodoRestante` (días remanentes acumulados si procede), `txNumber` (transacción bancaria), `codigoCorto` (igual a `licenciaObtenida`), `nonce` nuevo. `precioCobrado` existe en memoria/registro de GL y en Room, pero **no** viaja en el JSON firmado.
+Campos de la solicitud más: `id` (UUID), `emitidaEn`, `venceEn` (`null` si perpetua), `estado` (`ACTIVA`|`VENCIDA`|`REVOCADA`|`PERPETUA`), `licenciaObtenida` (código de 16 caracteres `XXXX-XXXX-XXXX-XXXX`), `secundarias`, `periodoRestante` (días remanentes acumulados si procede), `txNumber` (transacción bancaria), `codigoCorto` (igual a `licenciaObtenida`), `nonce` nuevo. `precioCobrado` no viaja en el JSON firmado; se conserva localmente en Room y en metadatos separados del backup `.glreg`. El operador compara manualmente los dos números introducidos; GL no se conecta a un banco ni verifica que el pago sea real. Además, el emisor compara `txNumber` con licencias registradas, pero no reserva el número de forma atómica.
 
 ### Clave Maestra de Desarrollo (`GLMK-PERM-MAXS-9999`)
-Habilita de forma inmediata y permanente (`PERPETUA`) cualquier app cliente con 10 secundarias para pruebas. **Restringida exclusivamente a builds DEBUG (`BuildConfig.DEBUG`)** para evitar accesos indebidos en producción (Opción A). En builds de release devuelve siempre falso.
+Solo existe en el `BuildConfig` de `DEBUG`; el campo de release es vacío, la tarjeta se oculta y `MasterKey.isMasterKey` usa `isDebug = false` por defecto. Aun así, debe tratarse como una credencial pública de desarrollo y no como secreto criptográfico. Las apps cliente deben rechazarla en producción; no hay un bypass de licencia de producción implementado en GL.
 
 ### Acumulación de Tiempo (Rollover) y Revalidación
 - Si el usuario tiene una licencia activa y solicita una nueva (sea del mismo tipo o diferente): GL calcula los días no transcurridos de la licencia activa y se los suma a la nueva licencia (`periodoRestante`). No aplica si la nueva es Perpetua o si la activa era de prueba.
@@ -122,7 +124,7 @@ Habilita de forma inmediata y permanente (`PERPETUA`) cualquier app cliente con 
 
 SPVI 0.23.1 no usa envelopes JSON ni códigos QR: solicitud `SPVIR1` y licencia corta `SPVI2`, solo texto. Las claves de GL no cambian (la misma ECDH que descifra y la misma firma `gl-sign-v1`).
 
-**Solicitud (SPVI → GL).** El operador pega el mensaje en el Generador (cuadro de texto + botón «Pegar»). GL busca `SPVIR1:` en cualquier parte del texto, toma lo que sigue ignorando espacios y saltos de línea y para en el primer carácter fuera de `A-Z a-z 0-9 - _`. Si un texto que menciona SPVI no trae el marcador, GL muestra «No es una solicitud de SPVI 0.23.»; otros textos inválidos conservan el aviso genérico. El descifrado: Base64url → `epk (33 B) || ct || tag (16 B)`, `epk` punto P-256 comprimido SEC1; `ikm = ECDH(privada ECDH de GL, epk)`; `okm = HKDF-SHA256(ikm, salt = epk, info = "SPVI-R1", 44 B)` → AES-256 = `okm[0..32)`, IV = `okm[32..44)`; `plano = AES-256-GCM-decrypt(clave, IV, AAD = "SPVI-R1|" || epk, ct || tag)`. Fallo GCM → «solicitud dañada o no es para GL». El plano es JSON `v: 2` (`nombre`, `apellidos`, `ci`, `via`, `telefono`, `deviceId` con prefijo `SPVI:`, `tipo`, `solicitadaEn`, `nonce`, `devicePub` de 33 B comprimidos, `secundarias` 0–10 obligatorio, `renueva` opcional). Sin `appName`: la app es el prefijo del `deviceId`. GL muestra al operador los datos **descifrados** y calcula el precio con la misma tabla (6 000/30 000/50 000/90 000 + 1 000/5 000/9 000/17 000 CUP por secundaria).
+**Solicitud (SPVI → GL).** El operador pega el mensaje en el Generador (cuadro de texto + botón «Pegar»). GL busca `SPVIR1:` en cualquier parte del texto, toma lo que sigue ignorando espacios y saltos de línea y para en el primer carácter fuera de `A-Z a-z 0-9 - _`. Si un texto que menciona SPVI no trae el marcador, GL muestra «No es una solicitud de SPVI 0.23.»; otros textos inválidos conservan el aviso genérico. El descifrado: Base64url → `epk (33 B) || ct || tag (16 B)`, `epk` punto P-256 comprimido SEC1; `ikm = ECDH(privada ECDH de GL, epk)`; `okm = HKDF-SHA256(ikm, salt = epk, info = "SPVI-R1", 44 B)` → AES-256 = `okm[0..32)`, IV = `okm[32..44)`; `plano = AES-256-GCM-decrypt(clave, IV, AAD = "SPVI-R1|" || epk, ct || tag)`. Fallo GCM → «solicitud dañada o no es para GL». El plano es JSON `v: 2` (`nombre`, `apellidos`, `ci`, `via`, `telefono`, `deviceId` con prefijo `SPVI:`, `tipo`, `solicitadaEn`, `nonce`, `devicePub` de 33 B comprimidos, `secundarias` 0–10 obligatorio, `renueva` opcional). Sin `appName`: la app es el prefijo del `deviceId`. El parser SPVI limita el texto con prefijo a 16 512 caracteres, el código Base64url a 16 384, el paquete decodificado a 12 288 bytes y el JSON en claro a 12 239 bytes. GL muestra al operador los datos **descifrados** y calcula el precio con la misma tabla (6 000/30 000/50 000/90 000 + 1 000/5 000/9 000/17 000 CUP por secundaria). Antes de emitir, `EmitirSpvi2UseCase` vuelve a validar los campos y rechaza `solicitadaEn` fuera de la ventana de 72 horas / 2 horas futuras. El nonce no se consume ni persiste y el reloj no resiste rollback.
 
 **Licencia (GL → SPVI).** Solo la corta: `"SPVI2:" + Base64url(epk 33 B || ct 44 B || tag 16 B || firma 64 B)` = 157 B → **210 caracteres**. Cuerpo en claro de 44 B big-endian: `0x02`, `licenseId` (16 B), huella (primeros 16 B de `SHA-256("SPVI-L2|" + deviceId + "|" || devicePub33)`), tipo (0–3), estado (0–3), secundarias, emitidaEn y venceEn en segundos Unix (`0` = perpetua). Cifrado con efímera P-256 fresca hacia `devicePub` (HKDF info `"SPVI-L2"`, AAD `"SPVI-L2|" || epk`), firma ECDSA cruda r‖s sobre `"SPVI-L2|" || epk || ct || tag`. Se guarda en la tabla `licenses` con `version = 2`, `appName = "SPVI"` y `codigoCorto` (el código completo); el `.glreg` las incluye y al importar revalida la firma.
 
@@ -167,7 +169,7 @@ Precios en CUP (SPVI y resto de apps con secundarias): `MENSUAL` 6 000 + 1 000 p
 
 ## `.glreg`
 
-Backup **del emisor**, no del cliente. Magia `GLRG`, AES-GCM AAD `glreg-v1`, firma Keystore local. **No** es API para apps licenciadas. Detalle: `docs/GLREG.md`.
+Backup **del emisor**, no del cliente. Las exportaciones nuevas usan formato `.glreg` v2 (AAD `glreg-v2`, firma Keystore local); se siguen importando paquetes legacy v1 (AAD `glreg-v1`). Es independiente del contrato v1 de envelopes/licencias y **no** es API para apps licenciadas. Detalle: `docs/GLREG.md`.
 
 ## Dispositivo emisor (no aplica al cliente)
 
@@ -188,7 +190,7 @@ Registro en SQLCipher con la passphrase envuelta por AES del Keystore; `.glreg` 
 | Archivo | Por qué |
 |---------|---------|
 | `README.md` / `SECURITY.md` | Límites y amenazas |
-| `domain/model/Modelos.kt` | Campos exactos |
+| `app/src/main/java/dev/gl/license/domain/model/Models.kt` | Campos exactos |
 | `security/HybridBox.kt` | Seal/open |
 | `security/ClientRequestHelper.kt` | Ejemplo de armado de solicitud (no se llama en runtime de GL) |
 | `security/CryptoGatewayImpl.kt` | AAD reales |
