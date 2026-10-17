@@ -32,7 +32,7 @@ No se puede detectar este caso por `SecretKey.getFormat()`: en Android devuelve 
 
 ## Gestión de claves
 
-- No hay claves **privadas** de criptografía en código, assets ni `BuildConfig`. La clave maestra de desarrollo es una credencial de prueba pública: el literal solo se genera en `BuildConfig` de debug, en release queda vacío, y no debe tratarse como secreto.
+- No hay claves **privadas** de criptografía en código, assets ni `BuildConfig`.
 - Material privado del Android Keystore no se exporta.
 - `.glreg` se cifra con la AES master del **mismo** dispositivo y se firma con el par local: **no es portable**.
 - Sin autenticación de usuario en las claves: la passphrase de la BD se puede descifrar mientras la app está abierta. Ver *Consecuencia* abajo.
@@ -47,7 +47,7 @@ Las notas siguientes describen el código de este repositorio, no las aplicacion
 
 ### Corregido en el código
 
-- **Clave de desarrollo:** el valor se define solo en el `BuildConfig` debug; el campo release queda vacío, `TrustScreen` no muestra la tarjeta en release e `isMasterKey` falla cerrado por defecto. Sigue siendo una credencial pública de desarrollo, no un secreto.
+- **Clave de desarrollo:** eliminada. Ya no existe `MASTER_KEY_CODE` ni la tarjeta en `TrustScreen`; el emisor no tiene ningún bypass de licencia.
 - **Helper v1:** deriva y cifra con el mismo IV; exige `devicePub` y comprueba que las claves EC recibidas usan parámetros P-256. Hay un test JVM de round-trip; el E2E Android continúa ignorado y no se declara validado.
 - **Entrada v1/SPVI:** límites de longitud antes del parseo, límites de tamaño en SPVI y archivo `.glreg`, comprobación de longitudes exactas y máximo de 10 000 entradas de backup.
 - **Frescura:** comparación exacta con ventana de 72 horas de antigüedad y 2 horas de adelanto, aplicada a v1 y antes de emitir SPVI.

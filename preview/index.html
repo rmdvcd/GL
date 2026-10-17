@@ -190,14 +190,7 @@
         <button class="primary full">Copiar</button>
       `,
       keys: () => `
-        ${header('Claves públicas y maestra', 'Fíjalas en la app cliente o usa la clave maestra para testear.')}
-        ${card(`
-          <h3 style="margin:0 0 6px; color:var(--gold);">Clave maestra de desarrollo</h3>
-          <p class="muted" style="margin-bottom:8px;">Habilita de forma permanente y con el máximo de apps secundarias (10) cualquier app que reciba claves de este generador para pruebas del desarrollador.</p>
-          <p style="margin:0 0 6px; font-weight:700; color:var(--ok); font-size:12px;">PERMANENTE · 10 APPS SECUNDARIAS</p>
-          <div class="key" style="font-size:15px; font-weight:700; text-align:center; letter-spacing:0.08em; padding:10px;">GLMK-PERM-MAXS-9999</div>
-          <button class="secondary full" id="copyMaster">Copiar clave maestra</button>
-        `)}
+        ${header('Claves públicas', 'Fíjalas en la app cliente para que acepte las licencias de este teléfono.')}
         ${card(`<h3 style="margin:0 0 7px">Clave de cifrado</h3><p class="muted">ECDH P-256 · huella SHA-256</p><div class="key">sha256:7b51:64d9:2ca9:4e14:5fc2:…</div><p class="muted">Base64 (SPKI)</p><div class="key">MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE…</div><button class="secondary full">Copiar esta clave</button>`)}
         ${card(`<h3 style="margin:0 0 7px">Clave de firma</h3><p class="muted">ECDSA P-256 · huella SHA-256</p><div class="key">sha256:8a91:2f8c:63be:ee4a:9d1b:…</div><p class="muted">Base64 (SPKI)</p><div class="key">MFkwEwYHKoZIzj0CAQYIKoZIz0DAQcDQgAE…</div><button class="secondary full">Copiar esta clave</button>`)}
         <button class="primary full">Copiar ambas claves</button>
@@ -262,11 +255,6 @@
 
       document.querySelector('#paste')?.addEventListener('click', () => {
         document.querySelector('.field').value = 'SPVIR1: solicitud pegada y lista para validar…';
-      });
-
-      document.querySelector('#copyMaster')?.addEventListener('click', () => {
-        navigator.clipboard?.writeText('GLMK-PERM-MAXS-9999');
-        alert('Clave maestra GLMK-PERM-MAXS-9999 copiada al portapapeles');
       });
     }
     nav.forEach(button => button.addEventListener('click', () => render(button.dataset.screen)));

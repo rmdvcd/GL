@@ -4,15 +4,23 @@ Generador de licencias Android offline. Kotlin + Compose + Hilt + Room/SQLCipher
 
 ## Entorno de build
 
-El repo **no tiene `gradlew` ni `gradle-wrapper.jar`**, solo `gradle/wrapper/gradle-wrapper.properties`. La compilación requiere JDK 17, Gradle 8.9 y Android SDK (compile/target API 35); define `ANDROID_HOME` o `local.properties` según tu entorno. `local.properties` está ignorado por Git.
+El repo **no tiene `gradlew` ni `gradle-wrapper.jar`**, solo `gradle/wrapper/gradle-wrapper.properties`. La compilación requiere JDK 17, Gradle 8.9 y Android SDK (compile/target API 35).
 
-En la sesión de auditoría actual no están disponibles `java`, `gradle` ni `ANDROID_HOME`, así que no se han ejecutado build, tests, lint ni instrumentados. Los resultados descritos más abajo como históricos no sustituyen una ejecución actual.
+Receta verificada en esta máquina (Windows, sin `gradle` en el PATH):
+
+```powershell
+$env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
+$env:JAVA_HOME = "C:\Users\666\.gradle\jdks\jdk17"
+& "C:\Users\666\.gradle\wrapper\dists\gradle-8.9-bin\90cnw93cvbtalezasaz0blq0a\gradle-8.9\bin\gradle.bat" :app:assembleDebug --console=plain
+```
+
+El `java` del PATH es JDK 25 y **Gradle 8.9 no lo acepta**; usa el 17 de `~/.gradle/jdks/jdk17`. Alternativa al env var: `local.properties` con `sdk.dir` (ignorado por Git).
 
 ## Comandos
 
 ```bash
 gradle :app:assembleDebug
-gradle :app:testDebugUnitTest       # Ejecuta los tests unitarios; el árbol actual contiene 167 @Test, sin resultado verificado aquí
+gradle :app:testDebugUnitTest       # Tests unitarios. Verificado 2026-10-17: 165 @Test, 0 fallos (27 suites, ~25 s)
 gradle :app:connectedDebugAndroidTest
 ```
 
@@ -115,7 +123,6 @@ Tres lecciones más de `uiautomator`, verificadas con la pantalla Contacto:
 - La casilla de pago es un `Row` con `toggleable(..., Role.Checkbox)` y **no tiene `contentDescription`**. Búscala con `isToggleable() and hasText("Pago realizado")`, nunca por descripción.
 - Para avanzar de `Licencia generada.` a `Registrada.` hace falta disparar `ON_RESUME` (es lo que llama a `onReturnedFromShare()` y habilita el botón). En un test: `scenario.moveToState(CREATED)` y luego `moveToState(RESUMED)`. `activity.onResume()` es `protected` y no compila.
 - `AppError.userMessage` es genérico y sin secretos. Ante error de reloj o lectura del historial, bloquea la validación/emisión; no conviertas esos fallos en `null` o lista vacía.
-- `MASTER_KEY_CODE` se define en `buildTypes.debug` y queda vacío en `release`; `TrustScreen` además lo oculta cuando `BuildConfig.DEBUG` es falso. Mantén el literal fuera de `src/main` y no pongas un valor por defecto permisivo en `MasterKey.isMasterKey`.
 - `ClientRequestHelper` no se usa en producción; es la referencia para que el cliente construya envelopes. El IV se comparte entre HKDF y AES-GCM.
 - Contrato criptográfico v1 inmutable. Cambiar AAD, curva o KDF = `v+1`. Añadir un campo al payload NO sube la versión: la firma va sobre `epk + ciphertext`, nunca sobre el plaintext.
 - **`appName` es obligatorio** en `SolicitudLicencia` y en `Licencia` (regex `^[\p{L}0-9 ._'-]{2,80}$`). El cliente tiene que mandarlo o `validateRequest` devuelve `InvalidPayload`. Si el JSON no trae la clave, kotlinx lanza `MissingFieldException` y `descifrarSolicitud` la captura en su `catch (_: Exception)` (CryptoGatewayImpl.kt:50) → `InvalidPayload`, no crash.

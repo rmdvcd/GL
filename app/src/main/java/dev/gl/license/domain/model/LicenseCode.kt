@@ -1,6 +1,5 @@
 package dev.gl.license.domain.model
 
-import dev.gl.license.BuildConfig
 import java.security.SecureRandom
 
 /**
@@ -35,29 +34,5 @@ object LicenseCodeGenerator {
     fun format(clean: String): String {
         val raw = clean.replace("-", "").replace(" ", "").trim().uppercase()
         return raw.chunked(4).joinToString("-")
-    }
-}
-
-/**
- * Clave maestra de desarrollo para habilitar cualquier app cliente de forma
- * permanente (sin expiración) y con el número máximo de apps secundarias (10).
- * Tiene 16 caracteres alfanuméricos en 4 grupos de 4.
- */
-object MasterKey {
-    val CODE: String
-        get() = BuildConfig.MASTER_KEY_CODE
-    const val MAX_SECUNDARIAS = 10
-
-    /**
-     * Comprueba si un código introducido corresponde a la clave maestra.
-     * En aplicaciones cliente en producción (release), se debe pasar `false`.
-     * El valor por defecto es fail-closed: las llamadas que omitan el entorno ya no habilitan
-     * la clave maestra accidentalmente.
-     */
-    fun isMasterKey(raw: String, isDebug: Boolean = false): Boolean {
-        val masterCode = CODE
-        if (!isDebug || masterCode.isBlank()) return false
-        val clean = raw.replace("-", "").replace(" ", "").trim().uppercase()
-        return clean == masterCode.replace("-", "")
     }
 }

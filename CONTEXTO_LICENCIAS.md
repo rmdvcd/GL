@@ -33,8 +33,8 @@ Solo son claves públicas. No hay nada secreto en este JSON, y no por eso dejes 
 
 > **Aviso importante:** las claves son **de una instalación concreta**, no del producto GL. Android Keystore las genera localmente la primera vez que se usan. Si el usuario borra los datos de GL, reinstala la app o cambia de teléfono, sale un par distinto y **el cliente rechazará todo lo emitido con el par anterior**. Decide cómo vas a comunicar ese cambio (reinstalar el cliente con las claves nuevas suele ser lo más simple) antes de dar por cerrado el flujo.
 
-### Clave Maestra de Desarrollo (`GLMK-PERM-MAXS-9999`) y Código de 16 Caracteres
-A partir de la versión actual, las licencias emitidas generan un código legible de 16 caracteres alfanuméricos agrupados en grupos de 4 (`XXXX-XXXX-XXXX-XXXX`). Para pruebas, la tarjeta de clave maestra solo aparece en builds `DEBUG`. El literal se genera solo en `BuildConfig` de debug; en release el campo queda vacío y `MasterKey.isMasterKey()` falla cerrado por defecto. Es una credencial de prueba, no un secreto ni un mecanismo apropiado para autorizar clientes en producción.
+### Código de 16 Caracteres
+A partir de la versión actual, las licencias emitidas generan un código legible de 16 caracteres alfanuméricos agrupados en grupos de 4 (`XXXX-XXXX-XXXX-XXXX`).
 Para la guía exhaustiva de implementación en apps cliente dirigida a otras IAs, ver `SISTEMA_LICENCIAS_CLIENTES.md`.
 
 ## Stack relevante
@@ -111,9 +111,6 @@ Las dos claves (cifrado y firma) salen de la pestaña **Claves** de la propia ap
 ### Payload licencia (plaintext)
 
 Campos de la solicitud más: `id` (UUID), `emitidaEn`, `venceEn` (`null` si perpetua), `estado` (`ACTIVA`|`VENCIDA`|`REVOCADA`|`PERPETUA`), `licenciaObtenida` (código de 16 caracteres `XXXX-XXXX-XXXX-XXXX`), `secundarias`, `periodoRestante` (días remanentes acumulados si procede), `txNumber` (transacción bancaria), `codigoCorto` (igual a `licenciaObtenida`), `nonce` nuevo. `precioCobrado` no viaja en el JSON firmado; se conserva localmente en Room y en metadatos separados del backup `.glreg`. El operador compara manualmente los dos números introducidos; GL no se conecta a un banco ni verifica que el pago sea real. Además, el emisor compara `txNumber` con licencias registradas, pero no reserva el número de forma atómica.
-
-### Clave Maestra de Desarrollo (`GLMK-PERM-MAXS-9999`)
-Solo existe en el `BuildConfig` de `DEBUG`; el campo de release es vacío, la tarjeta se oculta y `MasterKey.isMasterKey` usa `isDebug = false` por defecto. Aun así, debe tratarse como una credencial pública de desarrollo y no como secreto criptográfico. Las apps cliente deben rechazarla en producción; no hay un bypass de licencia de producción implementado en GL.
 
 ### Acumulación de Tiempo (Rollover) y Revalidación
 - Si el usuario tiene una licencia activa y solicita una nueva (sea del mismo tipo o diferente): GL calcula los días no transcurridos de la licencia activa y se los suma a la nueva licencia (`periodoRestante`). No aplica si la nueva es Perpetua o si la activa era de prueba.

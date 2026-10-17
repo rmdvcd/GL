@@ -23,7 +23,6 @@ android {
 
     buildTypes {
         release {
-            buildConfigField("String", "MASTER_KEY_CODE", "\"\"")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -32,7 +31,6 @@ android {
             )
         }
         debug {
-            buildConfigField("String", "MASTER_KEY_CODE", "\"GLMK-PERM-MAXS-9999\"")
             isMinifyEnabled = false
             applicationIdSuffix = ".debug"
         }

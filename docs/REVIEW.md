@@ -15,7 +15,7 @@
 ## Correcciones aplicadas estáticamente
 
 - El helper de solicitudes v1 usa el mismo IV para HKDF y AES-GCM, exige `devicePub` y valida EC P-256. Se añadió un round-trip JVM. El fixture E2E ahora incluye `devicePub` y transacciones coincidentes, pero continúa ignorado.
-- `MASTER_KEY_CODE` se define en `BuildConfig` solo para debug; release lo recibe vacío. La tarjeta se oculta fuera de debug y `MasterKey.isMasterKey` falla cerrado por defecto.
+- La clave maestra de desarrollo se eliminó por completo: no hay `MASTER_KEY_CODE`, ni tarjeta en `TrustScreen`, ni `MasterKey`.
 - La frescura v1 y SPVI usa una ventana exacta de hasta 72 horas de antigüedad y 2 horas de adelanto. Un fallo al leer/parsear el reloj ya no se convierte en una omisión de esa validación.
 - SPVI valida la solicitud antes de emitir, limita entrada/código y conserva `txNumber`. La consulta de duplicados es suspendida, case-insensitive y fail-closed; no se hace `runBlocking`.
 - `.glreg` exporta formato local v2 con AAD versionada, limita el paquete a 32 MiB y 10 000 entradas, lee el archivo con límite, comprueba longitudes y bytes sobrantes y conserva `precioCobrado` fuera del JSON de licencia. El importador acepta paquetes v1 antiguos y no borra un precio local existente cuando falta el metadato.

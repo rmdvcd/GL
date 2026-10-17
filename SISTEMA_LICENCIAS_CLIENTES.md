@@ -18,27 +18,16 @@ El flujo se divide en:
    - El operador introduce manualmente el número indicado por el cliente y el que lee del SMS bancario. GL solo compara los valores tras quitar espacios en los extremos (distingue mayúsculas/minúsculas) para habilitar el botón; no consulta al banco ni verifica por sí mismo que el pago exista.
    - GL genera un **código alfanumérico de 16 caracteres en grupos de 4 (`XXXX-XXXX-XXXX-XXXX`)** y emite la licencia cifrada hacia la clave pública del dispositivo cliente, firmada con la clave privada ECDSA de GL.
 3. **Activación (GL → Cliente):** El cliente recibe el mensaje con el código de 16 caracteres y el sobre cifrado, verifica la firma criptográfica de GL, valida que el `deviceId` y `appName` coincidan y persiste la licencia de forma segura.
-4. **Clave Maestra de Desarrollo:** el ejemplo de cliente puede habilitar `GLMK-PERM-MAXS-9999` solo en builds de desarrollo. GL muestra la clave únicamente en debug; en release el campo de BuildConfig está vacío y el validador falla cerrado. La clave es pública y no debe usarse como autorización de producción.
 
 ---
 
-## 2. Formato del Código de Licencia y Clave Maestra
+## 2. Formato del Código de Licencia
 
 ### 2.1 Código de Licencia (16 caracteres)
 - **Longitud:** 16 caracteres alfanuméricos agrupados en 4 grupos de 4, separados por guiones.
 - **Formato:** `XXXX-XXXX-XXXX-XXXX`
 - **Alfabeto permitido:** `[0-9A-Z]` (case-insensitive al procesar, ignorando guiones y espacios en blanco).
 - **Ejemplo:** `4K7N-9X2M-B8PQ-3T5V`
-
-### 2.2 Clave Maestra de Desarrollo (Master Key)
-- **Código:** `GLMK-PERM-MAXS-9999`
-- **Propósito:** Permite al desarrollador probar y activar de inmediato cualquier app cliente receptora de licencias de GL.
-- **Debug solamente:** GL la compila en `BuildConfig` solo para `debug`; en `release` el valor es vacío, la tarjeta está oculta y `MasterKey.isMasterKey` falla cerrado por defecto. Para una app cliente, inyecta el código solo en BuildConfig de debug y pasa explícitamente `BuildConfig.DEBUG`; no pongas el literal en código común de producción. Esto es una barrera de desarrollo, no secreto criptográfico.
-- Configuración recomendada de variantes: `debug { buildConfigField("String", "MASTER_KEY_CODE", "\"GLMK-PERM-MAXS-9999\"") }`; `release { buildConfigField("String", "MASTER_KEY_CODE", "\"\"") }`. Mantén el literal fuera de `src/main`.
-- **Efecto en el cliente (en Debug):**
-  - Estado: `ACTIVA` / `PERPETUA` (permanente, sin fecha de caducidad).
-  - Apps secundarias habilitadas: `10` (el máximo permitido).
-  - Modo: Offline, sin requerir envelope ni verificación de firma externa.
 
 ---
 
@@ -442,15 +431,6 @@ class ClientLicenseManager(
     private val glSigningKeyB64: String,
 ) {
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
-    // Configura el literal solo en buildConfigField de debug; en release usa "".
-    private val masterKeyCode = com.example.cliente.BuildConfig.MASTER_KEY_CODE
-
-    /** Nunca uses un valor por defecto permisivo para el modo debug. */
-    fun isMasterKey(input: String, isDebug: Boolean): Boolean {
-        if (!isDebug || masterKeyCode.isBlank()) return false
-        val clean = input.replace("-", "").replace(" ", "").trim().uppercase()
-        return clean == masterKeyCode.replace("-", "")
-    }
 
     /**
      * Construye y cifra la solicitud hacia la clave pública de GL.
@@ -519,10 +499,7 @@ class ClientLicenseManager(
     }
 
     /**
-     * Procesa y activa una licencia recibida desde GL.
-     * Soporta:
-     * 1. Clave maestra (GLMK-PERM-MAXS-9999): activación inmediata permanente con 10 secundarias.
-     * 2. Envelope cifrado devuelto por GL.
+     * Procesa y activa el envelope cifrado devuelto por GL.
      */
     fun activarLicencia(
         rawInput: String,
@@ -531,38 +508,11 @@ class ClientLicenseManager(
     ): Result<LicensePayload> {
         val trimmed = rawInput.trim()
 
-        // 1. Verificación de Clave Maestra
-        if (isMasterKey(trimmed, com.example.cliente.BuildConfig.DEBUG)) {
-            val masterLic = LicensePayload(
-                v = 1,
-                id = "master-license-local",
-                deviceId = deviceId,
-                appName = appName,
-                dispositivo = "${Build.MANUFACTURER} ${Build.MODEL}",
-                nombre = "Desarrollador",
-                apellidos = "Master",
-                ci = "00000000000",
-                via = "MASTER",
-                telefono = "+0000000000",
-                tipo = "PERPETUA",
-                licenciaObtenida = masterKeyCode,
-                secundarias = 10,
-                periodoRestante = null,
-                solicitadaEn = Instant.now().toString(),
-                emitidaEn = Instant.now().toString(),
-                venceEn = null,
-                estado = "PERPETUA",
-                codigoCorto = masterKeyCode,
-                nonce = "master-key-nonce",
-            )
-            return Result.success(masterLic)
-        }
-
         // El envelope no lleva el ID; para descifrarlo se necesita la línea `ID:` externa.
         val licenseId = expectedLicenseId?.trim()?.takeIf { it.isNotEmpty() && it.length <= 64 }
             ?: return Result.failure(IllegalArgumentException("ID de licencia ausente o inválido."))
 
-        // 2. Extracción de Envelope JSON si viene acompañado de texto o código
+        // Extracción de Envelope JSON si viene acompañado de texto o código
         val jsonStart = trimmed.indexOf("{\"v\":")
         val jsonEnd = trimmed.lastIndexOf("}")
         if (jsonStart < 0 || jsonEnd < 0 || jsonEnd <= jsonStart) {
@@ -576,7 +526,7 @@ class ClientLicenseManager(
             return Result.failure(e)
         }
 
-        // 3. Descifrado del Envelope
+        // 2. Descifrado del Envelope
         val glSignPub = ClientCryptoEngine.parsePublicKey(glSigningKeyB64)
         val epkBytes = ClientCryptoEngine.b64D(env.epk)
         val iv = ClientCryptoEngine.b64D(env.iv)
@@ -607,7 +557,7 @@ class ClientLicenseManager(
 
         val license = json.decodeFromString(LicensePayload.serializer(), decryptedBytes.decodeToString())
 
-        // 4. Validaciones de Integridad y Correspondencia
+        // 3. Validaciones de Integridad y Correspondencia
         if (license.id != licenseId) {
             return Result.failure(IllegalStateException("El ID externo no coincide con la licencia descifrada."))
         }
@@ -760,7 +710,6 @@ Estos puntos son tareas/recomendaciones para el **cliente externo**; no indican 
 - [ ] Proteger la privada del cliente (Keystore cuando esté disponible). GL cifra hacia la pública recibida, pero no verifica attestation ni vincula la clave a `deviceId`.
 - [ ] Incluir el modelo de dispositivo (`Build.MANUFACTURER + " " + Build.MODEL`) si se desea mostrarlo al operador.
 - [ ] Pedir el número de transacción y enviarlo para la comprobación manual del emisor; no asumir una pasarela de pago automática.
-- [ ] Mantener cualquier clave maestra de prueba exclusivamente en la variante debug, con `BuildConfig.DEBUG` explícito y el literal ausente de release.
 - [ ] Si el cliente necesita resistir rollback, diseñar y probar su propia fuente/marca monotónica; GL no aporta una marca de agua confiable.
 - [ ] Si hay apps secundarias, diseñar y verificar sus cuotas en el cliente; los sub-tokens descritos en esta guía no son un módulo de GL.
 - [ ] Implementar AAD v1 exactamente con `ClientCryptoEngine.canonical` (prefijo de longitud big-endian), no con delimitadores `|`.
@@ -771,7 +720,7 @@ Estos puntos son tareas/recomendaciones para el **cliente externo**; no indican 
 
 | # | Riesgo | Estado verificado en este repositorio |
 |---|---|---|
-| **1** | Clave maestra de desarrollo en release | El literal se genera solo en `BuildConfig` debug; release queda vacío y la tarjeta no se muestra. `MasterKey.isMasterKey` falla cerrado por defecto. Credencial pública de prueba, no secreto. |
+| **1** | Clave maestra de desarrollo | **Eliminada (2026-10-17):** no existe `MASTER_KEY_CODE`, ni la tarjeta en `TrustScreen`, ni `MasterKey` en el emisor. El cliente solo puede activar por envelope firmado. |
 | **2** | Reutilización de transacciones | Se consulta `txNumber` contra licencias guardadas y los errores de lectura bloquean emisión; SPVI también conserva el valor. No hay índice único ni reserva atómica; existe una carrera hasta pulsar Registrar. |
 | **3** | Clock rollback / vigencia | v1 y la emisión SPVI aplican una ventana exacta de 72 h de antigüedad y 2 h futura. El reloj es de pared; no hay watermark ni resistencia a rollback en GL. |
 | **4** | Clonación de `deviceId` / `devicePub` | GL exige una clave EC P-256 parseable y cifra a esa clave. No hay proof-of-possession, attestation ni vínculo con `deviceId`. |

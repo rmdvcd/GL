@@ -23,7 +23,6 @@ ViewModels y casos de uso: constructor `@Inject` (no hace falta `@Binds`).
 ## Flujo de Licencias y Códigos
 
 - **Formato del código emitido:** 16 caracteres alfanuméricos agrupados en 4 bloques de 4 (`XXXX-XXXX-XXXX-XXXX`).
-- **Clave Maestra de desarrollo:** la tarjeta solo se muestra en `DEBUG`; `MasterKey.isMasterKey` falla cerrado por defecto (`isDebug = false`). Es una credencial de prueba publicada en el código, no un secreto. En apps cliente debe rechazarse en release.
 - **Acumulación de tiempo remanente (Rollover):** Si el cliente tiene una licencia activa no vencida (mismo tipo o diferente), los días restantes se acumulan automáticamente a la nueva licencia emitida (salvo perpetuas o periodos de prueba).
 - **Revalidación:** Si una licencia previa ha vencido y el usuario solicita el mismo tipo, se procesa como revalidación.
 - **Transacciones:** el generador exige que coincidan `txCliente` y `txSms`, y consulta el historial persistido antes de emitir (incluido SPVI). No hay índice único/reserva atómica: hasta registrar la licencia existe una ventana de carrera y no se debe presentar como prevención absoluta de reuso.
