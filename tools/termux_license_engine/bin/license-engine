@@ -1,0 +1,3 @@
+#!/data/data/com.termux/files/usr/bin/sh
+set -eu
+exec "$PREFIX/bin/python" -m termux_license_engine "$@"
