@@ -29,6 +29,11 @@ El flujo se divide en:
 - **Alfabeto permitido:** `[0-9A-Z]` (case-insensitive al procesar, ignorando guiones y espacios en blanco).
 - **Ejemplo:** `4K7N-9X2M-B8PQ-3T5V`
 
+> **No es una prueba de licencia.** El formato 4×4 solo indica forma. En el flujo
+> de emisión viaja dentro de una licencia firmada por GL; en el canje comercial
+> lo valida un servicio externo y devuelve una licencia firmada por
+> `gl-redeem-v1` ligada al dispositivo. Ver `docs/REDEEM_SERVICE.md`.
+
 ---
 
 ## 3. Claves Públicas fijas de GL (Ancla de Confianza)

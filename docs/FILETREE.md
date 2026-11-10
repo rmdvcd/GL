@@ -17,11 +17,21 @@ GL/
 ├── gradle/
 │   ├── libs.versions.toml
 │   └── wrapper/gradle-wrapper.properties
+├── services/
+│   └── redeem/                    # servicio de canje serverless + cliente de referencia
+│       ├── src/                   # servicio, D1, HTTP, CLI y cliente
+│       ├── test/                  # pruebas node:test (106)
+│       ├── migrations/            # esquema D1
+│       └── examples/wrangler.toml
 ├── docs/
 │   ├── ARCHITECTURE.md
 │   ├── FILETREE.md
 │   ├── GLREG.md
 │   ├── INTEGRATION.md
+│   ├── REDEEM_SERVICE.md
+│   ├── LICENSE_CLIENT.md          # contrato de licencias Shalev
+│   ├── GL_ESPECIFICACION.md       # SPVI/SPVI2 (no modificar)
+│   ├── DSHALEV_GL_SERVICIO_PROPUESTA.md
 │   ├── REVIEW.md
 │   ├── TESTING.md
 │   └── …
@@ -33,9 +43,9 @@ GL/
         │   ├── core/                # errores, DI, reloj, inicialización
         │   ├── data/local/          # Room, migraciones y repositorios
         │   ├── data/mapper/
-        │   ├── domain/model/        # Models.kt, licencia, solicitud y tipos
+        │   ├── domain/model/        # Models.kt, licencia, solicitud, RedeemBatch y tipos
         │   ├── domain/repository/
-        │   ├── domain/usecase/      # validación, emisión e historial
+        │   ├── domain/usecase/      # validación, emisión, historial y lotes de canje
         │   ├── presentation/
         │   │   ├── contact/
         │   │   ├── generator/
@@ -44,7 +54,7 @@ GL/
         │   │   ├── theme/
         │   │   └── trust/
         │   └── security/            # CryptoEngine, HybridBox, SPVI, .glreg
-        ├── test/java/dev/gl/license/ # 27 clases; conteo anotado en docs/TESTING.md
+        ├── test/java/dev/gl/license/ # 28 clases; conteo anotado en docs/TESTING.md
         └── androidTest/java/dev/gl/license/
             ├── KeystoreCryptoTest.kt
             ├── LicenseGenerationE2ETest.kt  # @Ignore hasta runner Android compatible

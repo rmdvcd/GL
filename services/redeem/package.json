@@ -1,0 +1,16 @@
+{
+  "name": "gl-redeem-service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Servicio de canje de codigos GL y cliente de referencia para DShalev",
+  "engines": {
+    "node": ">=22.5"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "test:verbose": "node --test --test-reporter=spec test/*.test.js",
+    "server": "node src/node-server.js",
+    "cli": "node src/cli.js"
+  }
+}

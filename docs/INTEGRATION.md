@@ -22,7 +22,8 @@ ViewModels y casos de uso: constructor `@Inject` (no hace falta `@Binds`).
 
 ## Flujo de Licencias y Códigos
 
-- **Formato del código emitido:** 16 caracteres alfanuméricos agrupados en 4 bloques de 4 (`XXXX-XXXX-XXXX-XXXX`).
+- **Formato del código emitido:** 16 caracteres alfanuméricos agrupados en 4 bloques de 4 (`XXXX-XXXX-XXXX-XXXX`). Es un identificador dentro de la licencia firmada; **no** es canjeable por sí solo.
+- **Canje comercial:** servicio externo descrito en `docs/REDEEM_SERVICE.md`. El cliente debe verificar una licencia firmada por `gl-redeem-v1` y ligada al thumbprint de su clave; nunca activar por la mera validez del formato 4×4.
 - **Acumulación de tiempo remanente (Rollover):** Si el cliente tiene una licencia activa no vencida (mismo tipo o diferente), los días restantes se acumulan automáticamente a la nueva licencia emitida (salvo perpetuas o periodos de prueba).
 - **Revalidación:** Si una licencia previa ha vencido y el usuario solicita el mismo tipo, se procesa como revalidación.
 - **Transacciones:** el generador exige que coincidan `txCliente` y `txSms`, y consulta el historial persistido antes de emitir (incluido SPVI). No hay índice único/reserva atómica: hasta registrar la licencia existe una ventana de carrera y no se debe presentar como prevención absoluta de reuso.

@@ -1,0 +1,11 @@
+# Material de operador: claves privadas, lotes con codigos y SQL de importacion.
+secrets/
+data/
+*.private.json
+gl-issuer.json
+service.json
+lote*.json
+batch*.json
+import.sql
+/wrangler.toml
+node_modules/

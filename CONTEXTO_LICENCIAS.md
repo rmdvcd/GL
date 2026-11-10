@@ -35,6 +35,9 @@ Solo son claves públicas. No hay nada secreto en este JSON, y no por eso dejes 
 
 ### Código de 16 Caracteres
 A partir de la versión actual, las licencias emitidas generan un código legible de 16 caracteres alfanuméricos agrupados en grupos de 4 (`XXXX-XXXX-XXXX-XXXX`).
+
+Ese código es un identificador incluido en la licencia firmada, **no** una prueba de licencia. El canje comercial por código (servicio serverless + lote firmado por GL + licencia firmada por el servicio) se describe en `docs/REDEEM_SERVICE.md`. La validez del formato 4×4 no activa nada y el alfabeto generado excluye `I` y `O`.
+
 Para la guía exhaustiva de implementación en apps cliente dirigida a otras IAs, ver `SISTEMA_LICENCIAS_CLIENTES.md`.
 
 ## Stack relevante

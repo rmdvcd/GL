@@ -22,6 +22,8 @@ El `java` del PATH es JDK 25 y **Gradle 8.9 no lo acepta**; usa el 17 de `~/.gra
 gradle :app:assembleDebug
 gradle :app:testDebugUnitTest       # Tests unitarios. Verificado 2026-10-17: 165 @Test, 0 fallos (27 suites, ~25 s)
 gradle :app:connectedDebugAndroidTest
+
+cd services/redeem && npm test      # Servicio de canje: node --test (106 pruebas, sin dependencias)
 ```
 
 Para filtrar un solo test instrumentado, `am instrument` directo (PowerShell mangla `-Pandroid.testInstrumentationRunnerArguments.class`):
@@ -141,3 +143,20 @@ Tres lecciones más de `uiautomator`, verificadas con la pantalla Contacto:
 - **`StatusBanner(error = null, success = ...)` no se muestra nunca**: su `visible = error != null`. Para un mensaje de éxito usa un `Text` con el color del tema.
 - `MetaRow` reserva `width(120.dp)` al label: inútil para una clave de ~92 caracteres. `TrustScreen` pinta la clave en `FontFamily.Monospace` con su propia etiqueta.
 - En `adb shell uiautomator dump`, un nodo con `bounds="[0,0][0,0]"` está **fuera de pantalla**, no en el origen. Haz scroll antes de asumir que el botón no existe. Y parsea los bounds con `[int]$matches[1]` explícito: concatenarlos como string da `tap 439966 10911118` y falla sin quejarse.
+
+
+## Servicio de canje (fuera del APK)
+
+`services/redeem/` contiene el servicio serverless de activación por código y un
+cliente de referencia en JS. **No** añade `INTERNET` a la app Android.
+
+- Contrato, decisiones y límites: `services/redeem/README.md`.
+- Estado y pendientes: `docs/REDEEM_SERVICE.md`.
+- Pruebas: `cd services/redeem && npm test` (106, 0 fallos en esta sesión).
+- El caso de uso Kotlin `CrearLoteCanjeUseCase` / `RedeemBatch` **no se ha
+  compilado** en este entorno: no hay JDK, Android SDK ni Maven Central. No
+  afirmes que compila ni que sus tests pasan.
+- La integración DShalev está pendiente: los tres documentos ya están en
+  `docs/`, pero `rmdvcd/Shalev` sigue devolviendo 403 para el token de GitHub.
+- El código de 16 caracteres es un identificador; su formato válido no activa
+  nada. No lo uses como prueba de licencia.
