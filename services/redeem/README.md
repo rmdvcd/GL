@@ -5,7 +5,8 @@ acuñados por GL, por una **licencia firmada y ligada a una instalación**.
 
 > **Estado:** el servicio y el cliente de referencia están implementados y sus
 > pruebas pasan en este entorno. Los tres documentos de Shalev se recibieron y
-> revisaron, pero **el repositorio de DShalev sigue sin permiso de lectura**, así
+> revisaron, además de una exportación Repomix de DShalev (Python/FastAPI), pero
+> **el repositorio de DShalev sigue sin permiso de lectura**, así
 > que no se ha integrado en su código. **No se ha desplegado ni se ha probado
 > contra un GL real o un build de DShalev.** No debe declararse listo para uso
 > comercial hasta completar la lista de
@@ -22,7 +23,7 @@ acuñados por GL, por una **licencia firmada y ligada a una instalación**.
 | Transferencia | Manual, autorizada por el operador hacia el thumbprint de la nueva instalación. Conserva el vencimiento restante. |
 | Apps secundarias | **0 por defecto** (`MAX_SECUNDARIAS=0`). El cliente de referencia ya emite **sub-tokens firmados**; DShalev aún no tiene la pantalla que los emite, así que vender `secundarias > 0` sigue bloqueado hasta integrarla. |
 | Restauración | Misma clave + mismo código → el servicio devuelve la misma licencia (`licenseId` y vencimiento intactos). |
-| Renovación | Un código nuevo conserva los días restantes de la licencia activa de la misma instalación/app (rollover); si ya venció, empieza ahora. |
+| Renovación | Un código nuevo conserva los días restantes de la licencia activa de la misma instalación/app (rollover); si ya venció, empieza ahora. **Las renovaciones simultáneas de distintos códigos no están serializadas y pueden perder días; pendiente antes de uso comercial.** |
 
 ## Flujo
 
@@ -205,7 +206,7 @@ oráculo. `CODE_ALREADY_REDEEMED` solo se devuelve a quien ya tiene el código.
 | **Falta de conexión al activar** | No se guarda nada. El error incluye `requestId` para reintentar. |
 | **Pérdida de respuesta tras el canje** | El reintento con el mismo `requestId` o desde la misma clave devuelve la misma licencia; no se emite otra ni se consume otro código. |
 | **Respuesta manipulada** | El cliente verifica ECDSA con la clave fijada, `alg`, `kid`, `appId` y `deviceThumbprint` antes de persistir. |
-| **Restauración** | Reinstalar la app conservando la clave (Keystore) devuelve la misma licencia. Borrar la clave la pierde: no hay recuperación automática. |
+| **Restauración** | Reinstalar la app conservando la identidad protegida del dispositivo devuelve la misma licencia. Borrar la clave la pierde: no hay recuperación automática. |
 | **Transferencia** | Solo el operador, indicando el thumbprint de destino. La licencia anterior queda `REVOCADA` y la nueva hereda el vencimiento restante. Una licencia ya vencida no se transfiere. Si el destino se copió mal, el operador puede volver a autorizar la misma licencia hacia otro thumbprint mientras la transferencia siga pendiente. |
 | **Reloj retrasado** | La marca de agua local detecta retrocesos de más de 2 h y devuelve `CLOCK_ROLLBACK`. Es detección de mejor esfuerzo; el almacén local puede alterarse. |
 
@@ -293,7 +294,7 @@ cd services/redeem
 npm test
 ```
 
-106 pruebas con `node:test` (sin dependencias):
+107 pruebas con `node:test` (sin dependencias):
 
 - criptografía y canonicalización, DER↔P1363;
 - lote: firma, tamper, duplicados, app, límites, deadline;
@@ -356,3 +357,11 @@ thumbprint del dispositivo.
 11. **Importación D1**: `importBatch` no es transaccional por lote en el
     adaptador D1 (sí lo es cada canje). Un fallo a mitad deja códigos ya
     importados; reejecutar el SQL continúa y los duplicados fallan visiblemente.
+
+### Interoperabilidad con DShalev
+
+El vector público de prueba `test/fixtures/dshalev-protocol-v1.json` contiene
+peticiones, licencia, estado y sub-token firmados, SPKI públicas y bytes canónicos.
+No incluye claves privadas ni representa claves de producción. El test
+`test/dshalev-vector.test.js` comprueba que el contrato siga coincidiendo.
+El prompt para la implementación Python está en `docs/PROMPT_DSHALEV.md`.
