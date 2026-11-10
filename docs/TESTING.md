@@ -17,7 +17,7 @@ gradle :app:connectedDebugAndroidTest
 
 ## Cobertura del árbol actual
 
-Hay **167 métodos `@Test` en 27 clases de pruebas unitarias** bajo `app/src/test/java` y **9 métodos `@Test` instrumentados en 4 clases de prueba** bajo `app/src/androidTest/java` (más `HiltTestRunner`, que no contiene tests). `LicenseGenerationE2ETest` es uno de los instrumentados y sigue marcado `@Ignore`.
+Hay **170 métodos `@Test` en 28 clases de pruebas unitarias** bajo `app/src/test/java` y **9 métodos `@Test` instrumentados en 4 clases de prueba** bajo `app/src/androidTest/java` (más `HiltTestRunner`, que no contiene tests). `LicenseGenerationE2ETest` es uno de los instrumentados y sigue marcado `@Ignore`.
 
 | Prueba | Cobertura principal |
 |---|---|
@@ -28,6 +28,7 @@ Hay **167 métodos `@Test` en 27 clases de pruebas unitarias** bajo `app/src/tes
 | `GeneratorViewModelTest`, `TransactionMatchingTest` | Carreras de UI, pago y deduplicación de transacciones |
 | `RegistryArchiveTest`, `RegistryViewModelTest`, `InMemoryLicenseRepositoryTest` | Formato y metadatos `.glreg`, lista, importación y persistencia en Room in-memory |
 | `Spvi23*`, `RenovacionSpviTest`, `SpviGlregTest`, `ExtraccionSpviTest` | Solicitud SPVI, vector, extracción, emisión, renovación y límites |
+| `RedeemBatchTest` | Canonicalización del lote (vector cruzado con el servicio JS), normalización 4×4 y firma JVM; **no ejecutado en este entorno** |
 | `KeystoreCryptoTest` *(instrumentado)* | AES-GCM con clave real de Android Keystore; **no** cubre ECDH del flujo completo |
 | `SmokeTest`, `MainFlowsTest` *(instrumentados)* | Arranque y navegación UI |
 | `LicenseGenerationE2ETest` *(instrumentado, ignorado)* | Sobre → validación → emisión → registro; fixture actualizado, happy path aún sin validar |
@@ -45,3 +46,23 @@ Los instrumentados de UI también tuvieron una restricción de inicio de activid
 - Las claves públicas/privadas del Keystore son locales al dispositivo; un envelope creado para otra instalación GL no se puede descifrar aquí.
 - `CryptoEngine` mantiene las primitivas JVM independientes de Android Keystore; el fallback de IV para claves AES de Keystore está cubierto por `KeystoreCryptoTest`.
 - Los límites de transacción y `.glreg` deben probarse además con archivos grandes/truncados en un dispositivo o runner real.
+
+
+## Servicio de canje (Node)
+
+El servicio externo de activación tiene sus propias pruebas, independientes de
+Gradle:
+
+```bash
+cd services/redeem
+npm test    # node --test test/*.test.js
+```
+
+Resultado de la sesión: **106 pruebas, 0 fallos** en Node 22.22.3. Incluyen
+criptografía, lotes, canje, idempotencia, concurrencia, manipulación, fallos de
+red, política offline, transferencias, rollover de renovación, sub-tokens de
+secundarias, HTTP, privacidad y el esquema D1 sobre `node:sqlite`. Ver `services/redeem/README.md`.
+
+`RedeemBatchTest.kt` está escrito pero **no compilado ni ejecutado** aquí: el
+entorno no tiene JDK, Android SDK ni acceso a Maven Central. La verificación con
+GL real sigue pendiente.

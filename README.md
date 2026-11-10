@@ -70,6 +70,21 @@ Hilt, Compose Material 3 (oscuro forzado), Navigation, Room+SQLCipher.
 
 `core/AppRuntime.kt` carga `libsqlcipher.so` e instala BouncyCastle. Lo invoca `GlApplication.onCreate()` **y** `ProvideModule.db()`: el AAR `sqlcipher-android` no autocarga su `.so` y `GlApplication` no corre en los tests instrumentados.
 
+## Activación comercial por código (servicio externo)
+
+El código de 16 caracteres que aparece en una licencia emitida es un
+**identificador**, no una prueba de licencia. La activación comercial de apps
+como DShalev usa un **servicio de canje externo** que verifica el código, lo
+liga a la clave de la instalación y devuelve una licencia firmada por el
+servicio (`gl-redeem-v1`). GL acuña lotes de códigos firmados con `gl-sign-v1`;
+su clave privada sigue en el Keystore y la app Android no pide `INTERNET`.
+
+Ver [`docs/REDEEM_SERVICE.md`](docs/REDEEM_SERVICE.md) y
+[`services/redeem/README.md`](services/redeem/README.md). Estado: servicio y
+cliente de referencia implementados y probados (incluye rollover de renovación
+y sub-tokens de secundarias); integración DShalev y verificación con GL real
+**pendientes**.
+
 ## Contrato criptográfico v1
 
 `alg` = `ECIES-P256-AES256GCM-v1`

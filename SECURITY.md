@@ -62,12 +62,63 @@ Las notas siguientes describen el código de este repositorio, no las aplicacion
 - **Reserva de pago:** `txNumber` se comprueba contra licencias ya registradas, pero no hay índice único ni reserva atómica; la licencia se registra después de compartirla. Una carrera o un cierre antes de registrar todavía puede permitir reuso. No se añadió una migración que destruya/reescriba posibles duplicados históricos.
 - **`devicePub`:** es obligatorio y se valida como EC P-256; no hay proof-of-possession, attestation ni vínculo comprobado con `deviceId`. El cliente debe proteger su clave privada.
 - **Android 26–30:** `KeystoreManager` usa `PURPOSE_SIGN | PURPOSE_VERIFY` para la clave ECDH en esas versiones; no se ha verificado un fallback de `KeyAgreement`. No se eleva `minSdk` sin decisión explícita.
-- **Cliente no incluido:** watermark de reloj, sub-tokens y verificación en runtime descritos en la guía son responsabilidad de las apps cliente y no están implementados por este APK.
+- **Cliente no incluido:** watermark de reloj y verificación en runtime descritos en la guía son responsabilidad de las apps cliente y no están implementados por este APK. Los sub-tokens sí están implementados en el cliente JS de referencia; DShalev aún no los emite.
 - **Validación pendiente:** en este entorno no se ejecutaron build, tests, lint ni pruebas en dispositivo. Hace falta un runner Android compatible para validar el E2E/Keystore/Room.
 
 ## Validación
 
 Fail-closed. Fallo de versión, alg, IV, tag, firma, JSON o campos (teléfono, CI, fechas, tipo, nonce) → `AppError` genérico. Sin logs de plaintext. R8 elimina `Log` en release. `SecureLog.redact` en debug.
+
+## Servicio de canje comercial (externo)
+
+El servicio de activación por código descrito en `docs/REDEEM_SERVICE.md` es una
+pieza **aparte** del APK. No añade `INTERNET` a GL.
+
+- **Sub-token:** permiso firmado por la clave del dispositivo primario, ligado a
+  `licenseId`, thumbprint secundario, `slot`, cupo y vencimiento. La secundaria
+  lo verifica offline; no hay estado online ni revocación remota de la
+  secundaria. El `slot` no se registra en el servidor: la app primaria debe
+  impedir reutilizarlo. Si se compromete la clave primaria, puede emitir
+  permisos para cualquier dispositivo hasta el vencimiento.
+- **Renovación:** el rollover conserva días, pero dos canjes concurrentes del
+  mismo dispositivo pueden crear dos licencias con el mismo vencimiento; no se
+  pierde el derecho, aunque el cupo de secundarias queda duplicado.
+
+- **Claves separadas.** GL firma lotes con `gl-sign-v1` (Keystore). El servicio
+  firma licencias con `gl-redeem-v1` (secreto del servicio). El cliente fija solo
+  la segunda. Una firma de lote no verifica como licencia.
+- **Vínculo al dispositivo.** La licencia incluye `SHA-256(SPKI)` de una clave
+  P-256 de la instalación; el canje exige una firma de esa clave sobre app,
+  código normalizado, `requestId`, instante y nonce. Sin esa prueba, un
+  interceptor de la respuesta no puede quedarse la licencia.
+- **Atomicidad.** Un `requestId` y un canje activo por código están protegidos
+  por índices únicos en D1 (`request_id` UNIQUE, índice parcial
+  `UNIQUE(code_hash) WHERE active = 1`). El reintento devuelve la misma
+  licencia; otro dispositivo recibe un error genérico.
+- **Privacidad.** No se guardan códigos en claro (solo HMAC con pepper), ni
+  tokens, nonces, IPs o datos personales. Los contadores de rate limit usan HMAC.
+  El logger tiene lista blanca de campos.
+- **Política offline.** La licencia vale hasta su vencimiento; la revocación solo
+  se aplica al consultar `/v1/status` o al reintentar. No es revocación
+  instantánea sin conexión.
+- **Reloj.** El cliente usa `max(reloj, marca de agua)` y detecta retrocesos
+  mayores de 2 h, pero el almacén local puede alterarse: es disuasión, no
+  prueba.
+- **Código portador.** Quien tenga el código puede canjearlo primero. El canal
+  de venta y la entrega del código son parte de la superficie de ataque.
+- **Sin attestation.** El servicio no verifica Play Integrity ni hardware; la
+  clave del dispositivo es tan buena como el Keystore que la guarde.
+
+### Gestión de claves del servicio
+
+- `SERVICE_PRIVATE_KEY`, `CODE_PEPPER` y `GL_ISSUER_PUBLIC_KEY` viven en el
+  gestor de secretos del proveedor (Cloudflare Secrets), nunca en Git.
+- Los ficheros de `gen-keys`/`mint-batch` se escriben con permisos `0600`.
+- No hay rotación implementada: `kid` es único. Definir un plan antes de
+  producción.
+- Comprometer `gl-redeem-v1` obliga a publicar una nueva clave en el cliente y
+  a revocar licencias; comprometer `gl-sign-v1` obliga a dejar de importar lotes
+  y revisar los ya importados.
 
 ## UI
 
