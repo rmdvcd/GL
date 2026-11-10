@@ -11,9 +11,9 @@ en [`services/redeem/README.md`](../services/redeem/README.md).
 | Esquema D1 y adaptador | `migrations/0001_init.sql`, `src/d1-store.js` | Ejecutado sobre `node:sqlite`; **no** contra D1 real |
 | Cliente de referencia | `services/redeem/src/client/redeem-client.js` | Implementado y probado |
 | Acuñación de lotes en GL | `domain/model/RedeemBatch.kt`, `domain/usecase/CrearLoteCanjeUseCase.kt` | Escrito; **no compilado** en este entorno |
-| Pruebas JS | `services/redeem/test/` | 106 pruebas, 0 fallos |
+| Pruebas JS | `services/redeem/test/` | 107 pruebas, 0 fallos |
 | Pruebas Kotlin del lote | `app/src/test/.../RedeemBatchTest.kt` | Escritas; **no ejecutadas** (sin JDK/Android SDK) |
-| Integración DShalev | — | **No realizada**: los tres documentos ya están en `docs/`; `rmdvcd/Shalev` sigue con 403 para este token |
+| Integración DShalev | — | **No realizada**: exportación Repomix revisada; acceso directo al repositorio pendiente |
 
 ## Decisión de diseño
 
@@ -80,7 +80,7 @@ intransferible: la entrega del código al comprador sigue siendo el punto críti
 - Una cadena con formato 4×4 válido **no activa**: el cliente exige canje y
   licencia firmada.
 - El cliente de referencia deja un punto de extensión `verifyLegacy` para el
-  verificador SPVI2 existente de DShalev.
+  un verificador SPVI2 si una aplicación ya lo tiene; el código exportado de DShalev no lo implementa.
 
 ## Privacidad
 
@@ -97,15 +97,16 @@ para el token de esta sesión, incluso después de que el usuario dijera que dar
 acceso; hay que confirmar la instalación de la GitHub App o reconectar GitHub en
 Arena.
 
-Sin el código de DShalev, escribir la integración sería inventar el contrato que
-ya existe en la app (nombres de app, almacenamiento, UI, formato de mensajes,
-política de reinstalación). El servicio y el cliente de referencia quedan
-listos para esa integración, pero **no se declara la activación comercial como
-terminada**.
+Se recibió y revisó una exportación Repomix de DShalev. Es Python/FastAPI,
+con panel informativo en `dshalev/templates/license.html`, ruta en `app.py`,
+y una prueba local para secundarias en `sync_server.py`; no es un cliente .NET.
+La exportación puede omitir archivos, no acredita el estado actual del repositorio
+y no permite modificarlo aquí. La integración sigue pendiente. El prompt
+[`PROMPT_DSHALEV.md`](PROMPT_DSHALEV.md) describe los cambios para otra sesión.
 
 ## Pendiente antes de uso comercial
 
-1. Acceso efectivo al repo Shalev/DShalev (hoy 403) y revisión de su código.
+1. Acceso efectivo al repositorio DShalev y revisión de su estado actual.
 2. Integrar el cliente en DShalev y ejecutar sus pruebas.
 3. Compilar GL con JDK 17 y ejecutar `:app:testDebugUnitTest` (incluye
    `RedeemBatchTest`). Aquí no hay JDK, Android SDK ni Maven Central.
@@ -117,6 +118,11 @@ terminada**.
 9. Pruebas de carga, abuso y límites del borde.
 10. Si se quiere revocación efectiva sin conexión, cambiar la política offline
     (hoy es «válida hasta el vencimiento»).
+11. Resolver renovaciones simultáneas de códigos distintos para la misma
+    instalación: el rollover actual lee antes de insertar y no serializa esas
+    renovaciones; pueden perderse días. No vender esta función hasta resolverlo.
+12. Resolver reutilización de slots y compatibilidad de sub-tokens con las
+    secundarias reales antes de elevar `MAX_SECUNDARIAS` sobre cero.
 
 ## Cómo verificar lo implementado
 
@@ -125,7 +131,7 @@ cd services/redeem
 npm test
 ```
 
-Resultado de esta sesión: **106 pruebas, 0 fallos** (Node 22.22.3).
+Resultado de esta sesión: **107 pruebas, 0 fallos** (Node 22.22.3).
 Las pruebas cubren criptografía, lotes, canje, idempotencia, concurrencia,
 manipulación, red, offline, transferencia, rollover, sub-tokens de secundarias,
 HTTP, privacidad y el esquema D1 sobre `node:sqlite`.
@@ -151,11 +157,12 @@ Se recibieron `LICENSE_CLIENT.md`, `docs/GL_ESPECIFICACION.md` y
   venderse como derecho efectivo hasta que DShalev tenga la pantalla que emite
   permisos.
 
-El repositorio `rmdvcd/Shalev` sigue sin permiso de lectura para el token de esta
-sesión (`403 Resource not accessible by integration`; `git ls-remote` falla).
-Por eso **no se ha escrito la integración dentro de DShalev**: no se conoce su
-proyecto, su almacén de claves Windows, su UI ni su modelo de licencia actual.
-Escribirla sin ese código sería inventar su arquitectura.
+La exportación revisada muestra Python/FastAPI y un panel informativo sin
+verificador GL. `database.py` usa DPAPI para la clave de la base; eso no es una
+identidad de licencia. `sync_server.py` envía una prueba provisional de siete
+días. Los respaldos pueden restaurarse en otro equipo y los locales tienen datos
+separados: ambos necesitan una política explícita antes de producción. El
+repositorio directo no fue accesible en esta sesión; no se modificó DShalev.
 
 ### Qué debe implementar DShalev cuando se dé acceso
 
@@ -173,7 +180,7 @@ Escribirla sin ese código sería inventar su arquitectura.
 5. **Almacén:** sobre firmado, `lastSeenMs`, estado y (si es secundaria) el
    paquete primario + sub-token, cifrado con DPAPI. No guardar el código.
 6. **Estados:** mapear `ACTIVA`/`VENCIDA`/`REVOCADA`/`PERPETUA` a su panel sin
-   tocar el panel `SPVI2:` existente; un fallo de red o respuesta inválida no
+   alterar el contrato Android `SPVI2:`; un fallo de red o respuesta inválida no
    borra la licencia previa.
 7. **Sub-tokens:** la primaria firma permisos con su clave; la secundaria los
    verifica offline. Si DShalev aún no tiene esta pantalla, mantener
@@ -202,9 +209,7 @@ Escribirla sin ese código sería inventar su arquitectura.
 6. **Revocación offline:** la política sigue siendo válida hasta el vencimiento;
    una secundaria no consulta el estado de la primaria y no recibe revocaciones.
 
-Para desbloquear la integración hace falta acceso de lectura a
-`rmdvcd/Shalev` o el árbol de proyecto de DShalev (incluyendo su almacén de
-licencias, su UI de activación y su arranque).
+Para implementar, trabajar sobre el repositorio DShalev real y contrastarlo con la exportación recibida.
 
 ### Entradas necesarias
 
@@ -214,9 +219,8 @@ licencias, su UI de activación y su arranque).
 - `appId` exacto que acuñará GL en el lote (hoy configurado como `DSHALEV` solo
   como ejemplo).
 - Almacenamiento local disponible en Windows (DPAPI/CNG, archivo cifrado) y
-  versión mínima de .NET soportada.
-- Verificador SPVI2 existente, para conservarlo como `verifyLegacy` sin tocar su
-  semántica.
+  versión de Python y empaquetado Windows soportados.
+- Conservar el contrato SPVI2 de Android; no presumir un verificador SPVI2 en DShalev.
 - Cómo se muestra el código al usuario y cómo se comunica el thumbprint al
   operador para una transferencia.
 
@@ -240,13 +244,12 @@ licencias, su UI de activación y su arranque).
 7. Reintentos: conservar el `requestId` si no se sabe si el servidor procesó.
    Si se perdió, un nuevo `requestId` desde la misma clave devuelve la misma
    licencia.
-8. Restauración: conservar la clave del Keystore; con el mismo código el
+8. Restauración: conservar la identidad protegida por Windows; con el mismo código el
    servicio devuelve la misma licencia. Si se borra la clave, no hay
    recuperación automática.
 9. Revocación: llamar a `/v1/status` cuando haya red (o al abrir la pantalla de
    licencia) y respetar `REVOCADA`. Sin conexión no se puede garantizar.
-10. Mantener intacto el verificador SPVI2/envelopes v1 para licencias ya
-    emitidas.
+10. No modificar el contrato Android SPVI2 ni confundirlo con la licencia de canje.
 
 ### Prohibiciones
 
@@ -266,7 +269,7 @@ licencias, su UI de activación y su arranque).
 | Respuesta manipulada | Rechazo; no se guarda |
 | Sin red al activar | Error con `requestId`; reintento seguro |
 | Red perdida tras canje | Reintento devuelve la misma licencia |
-| Reinstalación con Keystore intacto | Misma licencia |
+| Reinstalación con identidad protegida intacta | Misma licencia |
 | Reloj retrasado | `CLOCK_ROLLBACK` o vencimiento por marca de agua |
 | Licencia vencida | Bloqueo local |
 | Revocación online | Bloqueo tras `/v1/status` |

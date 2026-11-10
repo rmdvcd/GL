@@ -10,7 +10,7 @@ import { utf8 } from "./canonical.js";
 import { hmacSha256 } from "./canonical.js";
 import { toBase64Url } from "./canonical.js";
 
-/** Mismo alfabeto que `LicenseCodeGenerator`: 32 simbolos, sin I ni O. */
+/** Mismo alfabeto que `LicenseCodeGenerator`: 34 simbolos, sin I ni O. */
 export const CODE_ALPHABET = "0123456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 export const CODE_LENGTH = 16;
 export const CODE_GROUPED_LENGTH = 19;
