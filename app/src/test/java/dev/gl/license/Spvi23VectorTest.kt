@@ -112,4 +112,45 @@ class Spvi23VectorTest {
         v.update(msg)
         assertThat(v.verify(raw)).isTrue()
     }
+
+    @Test
+    fun verificarToleraEspaciosSaltosDeLineaYTextoCircundante() {
+        val devicePub = Spvi23.descomprimirPunto(Spvi23.b64urlD(devicePubB64))
+        val efimera = parConEscalar(efimeraHex)
+        val firma = parConEscalar(firmaDHex)
+        val sellado = Spvi23.sellarLicencia(
+            hex(cuerpoHex),
+            devicePub,
+            firma.private,
+            efimera,
+        )
+        val firmaPub = CryptoEngine.parseEcPublic(firmaSpkiB64)
+        val codigoLimpio = sellado.codigo()
+
+        // 1. Código partido en líneas de 60 chars con espacios
+        val codigoConSaltos = "SPVI2:" + codigoLimpio.removePrefix("SPVI2:")
+            .chunked(60).joinToString("\n  ")
+        assertThat(Spvi23.verificar(codigoConSaltos, firmaPub)).isTrue()
+
+        // 2. Mensaje completo de respuesta
+        val mensajeCompleto = """
+            Licencia SPVI
+            Tipo: Mensual
+            Apps secundarias: 2
+            Emitida: 03/10/2026
+            Vence: 02/11/2026
+            ID: $licenseId
+
+            $codigoConSaltos
+
+            ¡Gracias por su compra!
+        """.trimIndent()
+        assertThat(Spvi23.verificar(mensajeCompleto, firmaPub)).isTrue()
+
+        // 3. Mutación en el código falla
+        val mutado = codigoLimpio.substring(0, 20) +
+            (if (codigoLimpio[20] == 'A') 'B' else 'A') +
+            codigoLimpio.substring(21)
+        assertThat(Spvi23.verificar(mutado, firmaPub)).isFalse()
+    }
 }

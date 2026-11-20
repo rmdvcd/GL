@@ -42,4 +42,18 @@ class PrecioTablaTest {
     fun formatoPrecioAgrupaMilesAntesDeCUP() {
         assertThat(PrecioTabla.formatoPrecio(8_000)).isEqualTo("8 000 CUP")
     }
+
+    @Test
+    fun desgloseAmpliacionCalculaDiferenciaDeSecundarias() {
+        assertThat(PrecioTabla.porSecundaria(TipoLicencia.MENSUAL)).isEqualTo(1_000)
+        assertThat(PrecioTabla.ampliacion(TipoLicencia.MENSUAL, 3)).isEqualTo(3_000)
+        assertThat(PrecioTabla.desgloseAmpliacion(TipoLicencia.MENSUAL, 2, 5))
+            .isEqualTo("Ampliación Mensual: +3 secundarias (2 → 5) × 1 000 = 3 000 CUP")
+    }
+
+    @Test
+    fun desgloseRecuperacionIndicaGratuidadYRevocacion() {
+        assertThat(PrecioTabla.desgloseRecuperacion("lic-123"))
+            .contains("Recuperación: gratuita")
+    }
 }

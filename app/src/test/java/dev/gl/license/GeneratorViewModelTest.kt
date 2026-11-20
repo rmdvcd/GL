@@ -49,7 +49,11 @@ class GeneratorViewModelTest {
             }
     }
 
-    private fun solSpvi(renueva: String? = null) = SolicitudSpviV2(
+    private fun solSpvi(
+        renueva: String? = null,
+        recupera: String? = null,
+        amplia: String? = null,
+    ) = SolicitudSpviV2(
         v = 2,
         nombre = "Maria",
         apellidos = "Perez Gonzalez",
@@ -63,6 +67,29 @@ class GeneratorViewModelTest {
         devicePub = "AiuZGHe7sUgbFLfqufeF1BMCvKuYZQuJKYSxnIoc0zMK",
         secundarias = 2,
         renueva = renueva,
+        recupera = recupera,
+        amplia = amplia,
+    )
+
+    private fun previaLic(id: String, venceSec: Long = 1_767_225_600L + 5 * 86_400L) = Licencia(
+        version = 2,
+        id = id,
+        firstName = "Maria",
+        lastName = "Perez Gonzalez",
+        nationalId = "85010112345",
+        channel = ViaSolicitud.WHATSAPP,
+        phone = "+5352345678",
+        deviceId = "SPVI:old-device",
+        appName = "SPVI",
+        type = TipoLicencia.MENSUAL,
+        requestedAtIso = "2025-12-01T00:00:00Z",
+        issuedAtIso = java.time.Instant.ofEpochSecond(venceSec - 30 * 86_400L).toString(),
+        expiresAtIso = java.time.Instant.ofEpochSecond(venceSec).toString(),
+        status = dev.gl.license.domain.model.EstadoLicencia.ACTIVA,
+        secundarias = 2,
+        precioCobrado = 8_000,
+        codigoCorto = "SPVI2:previa",
+        nonce = "AAAAAAAAAAAAAAAAAAAAAA==",
     )
 
     private class PuertaFake(
@@ -95,6 +122,7 @@ class GeneratorViewModelTest {
             RegistrarLicenciaUseCase(lic, reg, FixedClock),
             puerta,
             EmitirSpvi2UseCase(puerta, lic, FixedClock),
+            dev.gl.license.domain.usecase.EvaluarSolicitudHistorialUseCase(lic, FixedClock),
         )
     }
 
@@ -240,5 +268,45 @@ class GeneratorViewModelTest {
 
         assertThat(vm.ui.value.pending).isNotNull()
         assertThat(vm.ui.value.renuevaAviso).isNotNull()
+    }
+
+    @Test
+    fun spviRecuperacionPermiteGenerarSinTransaccionNiPago() = runTest {
+        val licencias = MemLic()
+        licencias.upsert(previaLic("previa-uuid"))
+
+        val vm = vm(
+            licencias = licencias,
+            puerta = PuertaFake(solicitud = solSpvi(recupera = "previa-uuid"), codigo = "SPVI2:RECUPERADA"),
+        )
+        vm.onRawChange("SPVIR1:AAAA")
+
+        assertThat(vm.ui.value.spvi?.recupera).isEqualTo("previa-uuid")
+        assertThat(vm.ui.value.paid).isTrue()
+        assertThat(vm.ui.value.spviPrecioDesglose).contains("Recuperación")
+
+        // Genera directamente sin ingresar transacción ni marcar pago
+        vm.generateLicense()
+
+        assertThat(vm.ui.value.shareBody).contains("SPVI2:RECUPERADA")
+        assertThat(vm.ui.value.pending?.codigoCorto).isEqualTo("SPVI2:RECUPERADA")
+        assertThat(vm.ui.value.pending?.precioCobrado).isEqualTo(0)
+
+        // La anterior quedó revocada
+        val previa = licencias.getById("previa-uuid")
+        assertThat(previa?.status).isEqualTo(dev.gl.license.domain.model.EstadoLicencia.REVOCADA)
+    }
+
+    @Test
+    fun spviRecuperacionRechazaAnteriorInvalida() = runTest {
+        val licencias = MemLic()
+        val vm = vm(
+            licencias = licencias,
+            puerta = PuertaFake(solicitud = solSpvi(recupera = "previa-inexistente")),
+        )
+        vm.onRawChange("SPVIR1:AAAA")
+
+        assertThat(vm.ui.value.spvi).isNull()
+        assertThat(vm.ui.value.error).isEqualTo(AppError.RecuperacionInvalida.userMessage)
     }
 }

@@ -234,7 +234,7 @@ fun GeneratorScreen(
                         type = request.tipo.name,
                         requestedAt = request.solicitadaEn,
                         secundarias = request.secundarias,
-                        priceBreakdown = PrecioTabla.desglose(request.tipo, request.secundarias),
+                        priceBreakdown = ui.spviPrecioDesglose ?: PrecioTabla.desglose(request.tipo, request.secundarias),
                         renewalNotice = ui.renuevaAviso,
                     )
                     Spacer(Modifier.height(GlDimens.gap))
@@ -244,6 +244,7 @@ fun GeneratorScreen(
                         txCliente = ui.txCliente,
                         txSms = ui.txSms,
                         txMatch = ui.txMatch,
+                        isRecovery = ui.spvi?.recupera != null,
                         onTxClienteChange = vm::onTxClienteChange,
                         onTxSmsChange = vm::onTxSmsChange,
                         hasEncryptedLicense = ui.encryptedLicense != null,
@@ -403,89 +404,104 @@ private fun PaymentAndActions(
     onPaidChange: (Boolean) -> Unit,
     onGenerate: () -> Unit,
     onRegister: () -> Unit,
+    isRecovery: Boolean = false,
 ) {
-    GlCard(contentAlignment = Alignment.CenterHorizontally) {
-        SectionLabel(stringResource(R.string.generator_payment_step))
-        Text(
-            text = stringResource(R.string.generator_payment_supporting),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Spacer(Modifier.height(12.dp))
-
-        // Input 1 (arriba): No. transacción enviado por el cliente
-        OutlinedTextField(
-            value = txCliente,
-            onValueChange = onTxClienteChange,
-            label = { Text(stringResource(R.string.tx_cliente_label)) },
-            placeholder = { Text(stringResource(R.string.tx_cliente_hint)) },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Spacer(Modifier.height(8.dp))
-
-        // Input 2 (abajo): No. transacción extraído de los SMS
-        OutlinedTextField(
-            value = txSms,
-            onValueChange = onTxSmsChange,
-            label = { Text(stringResource(R.string.tx_sms_label)) },
-            placeholder = { Text(stringResource(R.string.tx_sms_hint)) },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Spacer(Modifier.height(8.dp))
-
-        val txStatusText = when {
-            txCliente.isBlank() || txSms.isBlank() -> stringResource(R.string.tx_pending_hint)
-            txMatch -> stringResource(R.string.tx_match_success)
-            else -> stringResource(R.string.tx_mismatch_error)
-        }
-        val txStatusColor = when {
-            txCliente.isBlank() || txSms.isBlank() -> MaterialTheme.colorScheme.onSurfaceVariant
-            txMatch -> MaterialTheme.colorScheme.primary
-            else -> MaterialTheme.colorScheme.error
-        }
-        Text(
-            text = txStatusText,
-            style = MaterialTheme.typography.bodySmall,
-            color = txStatusColor,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Spacer(Modifier.height(10.dp))
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(GlDimens.touch)
-                .toggleable(
-                    value = paid,
-                    enabled = txMatch,
-                    role = Role.Checkbox,
-                    onValueChange = { if (txMatch) onPaidChange(it) },
-                ),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center,
-        ) {
-            Checkbox(
-                checked = paid,
-                enabled = txMatch,
-                onCheckedChange = null,
-            )
-            Spacer(Modifier.padding(horizontal = 4.dp))
+    if (isRecovery) {
+        GlCard(contentAlignment = Alignment.CenterHorizontally) {
+            SectionLabel(stringResource(R.string.generator_recovery_step))
+            Spacer(Modifier.height(4.dp))
             Text(
-                text = stringResource(R.string.payment_done),
-                color = if (txMatch) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                text = stringResource(R.string.generator_recovery_supporting),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
             )
+        }
+    } else {
+        GlCard(contentAlignment = Alignment.CenterHorizontally) {
+            SectionLabel(stringResource(R.string.generator_payment_step))
+            Text(
+                text = stringResource(R.string.generator_payment_supporting),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(12.dp))
+
+            // Input 1 (arriba): No. transacción enviado por el cliente
+            OutlinedTextField(
+                value = txCliente,
+                onValueChange = onTxClienteChange,
+                label = { Text(stringResource(R.string.tx_cliente_label)) },
+                placeholder = { Text(stringResource(R.string.tx_cliente_hint)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(8.dp))
+
+            // Input 2 (abajo): No. transacción extraído de los SMS
+            OutlinedTextField(
+                value = txSms,
+                onValueChange = onTxSmsChange,
+                label = { Text(stringResource(R.string.tx_sms_label)) },
+                placeholder = { Text(stringResource(R.string.tx_sms_hint)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(8.dp))
+
+            val txStatusText = when {
+                txCliente.isBlank() || txSms.isBlank() -> stringResource(R.string.tx_pending_hint)
+                txMatch -> stringResource(R.string.tx_match_success)
+                else -> stringResource(R.string.tx_mismatch_error)
+            }
+            val txStatusColor = when {
+                txCliente.isBlank() || txSms.isBlank() -> MaterialTheme.colorScheme.onSurfaceVariant
+                txMatch -> MaterialTheme.colorScheme.primary
+                else -> MaterialTheme.colorScheme.error
+            }
+            Text(
+                text = txStatusText,
+                style = MaterialTheme.typography.bodySmall,
+                color = txStatusColor,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(10.dp))
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(GlDimens.touch)
+                    .toggleable(
+                        value = paid,
+                        enabled = txMatch,
+                        role = Role.Checkbox,
+                        onValueChange = { if (txMatch) onPaidChange(it) },
+                    ),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+            ) {
+                Checkbox(
+                    checked = paid,
+                    enabled = txMatch,
+                    onCheckedChange = null,
+                )
+                Spacer(Modifier.padding(horizontal = 4.dp))
+                Text(
+                    text = stringResource(R.string.payment_done),
+                    color = if (txMatch) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                )
+            }
         }
     }
     Spacer(Modifier.height(8.dp))
     GlPrimaryButton(
         text = stringResource(R.string.generate_license),
         onClick = onGenerate,
-        enabled = paid && txMatch && !loading && !hasEncryptedLicense,
+        enabled = (isRecovery || (paid && txMatch)) && !loading && !hasEncryptedLicense,
         loading = loading && !hasEncryptedLicense,
     )
     Spacer(Modifier.height(8.dp))

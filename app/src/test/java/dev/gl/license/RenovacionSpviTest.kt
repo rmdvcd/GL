@@ -168,4 +168,105 @@ class RenovacionSpviTest {
 
         assertThat(result.value.licencia.txNumber).isEqualTo("TX-SPVI")
     }
+
+    @Test
+    fun recuperacionExitosaRevocaAnteriorYConservaVencimiento() = runTest {
+        val licencias = MemLic()
+        val previaVence = ahoraSec + 5 * 86_400L
+        licencias.upsert(anterior("previa-uuid", venceSec = previaVence))
+
+        val solRecupera = sol().copy(
+            deviceId = "SPVI:nuevo-device-999",
+            renueva = null,
+            recupera = "previa-uuid",
+        )
+
+        val r = emitir(solRecupera, licencias) as Outcome.Ok
+        val nueva = r.value.licencia
+
+        // La anterior queda revocada en el registro
+        val previaActualizada = licencias.getById("previa-uuid")
+        assertThat(previaActualizada?.status).isEqualTo(EstadoLicencia.REVOCADA)
+
+        // La nueva pertenece al nuevo dispositivo, conserva vencimiento, tipo y secundarias, y es gratuita
+        assertThat(nueva.deviceId).isEqualTo("SPVI:nuevo-device-999")
+        assertThat(nueva.expiresAtIso).isEqualTo(Instant.ofEpochSecond(previaVence).toString())
+        assertThat(nueva.type).isEqualTo(TipoLicencia.MENSUAL)
+        assertThat(nueva.secundarias).isEqualTo(2)
+        assertThat(nueva.precioCobrado).isEqualTo(0)
+    }
+
+    @Test
+    fun recuperacionRechazaAnteriorInexistente() = runTest {
+        val licencias = MemLic()
+        val solInexistente = sol().copy(recupera = "no-existe-uuid")
+
+        val r = emitir(solInexistente, licencias) as Outcome.Err
+        assertThat(r.error).isEqualTo(AppError.RecuperacionInvalida)
+    }
+
+    @Test
+    fun recuperacionRechazaAnteriorRevocada() = runTest {
+        val licencias = MemLic()
+        licencias.upsert(anterior("previa-revocada", status = EstadoLicencia.REVOCADA, venceSec = ahoraSec + 5 * 86_400L))
+
+        val solRecupera = sol().copy(recupera = "previa-revocada")
+        val r = emitir(solRecupera, licencias) as Outcome.Err
+        assertThat(r.error).isEqualTo(AppError.RecuperacionInvalida)
+    }
+
+    @Test
+    fun recuperacionRechazaAnteriorVencida() = runTest {
+        val licencias = MemLic()
+        licencias.upsert(anterior("previa-vencida", venceSec = ahoraSec - 2 * 86_400L))
+
+        val solRecupera = sol().copy(recupera = "previa-vencida")
+        val r = emitir(solRecupera, licencias) as Outcome.Err
+        assertThat(r.error).isEqualTo(AppError.RecuperacionInvalida)
+    }
+
+    @Test
+    fun recuperacionRechazaCiDiferente() = runTest {
+        val licencias = MemLic()
+        licencias.upsert(anterior("previa-ci", venceSec = ahoraSec + 5 * 86_400L))
+
+        val solAjena = sol().copy(ci = "00112233445", recupera = "previa-ci")
+        val r = emitir(solAjena, licencias) as Outcome.Err
+        assertThat(r.error).isEqualTo(AppError.RecuperacionInvalida)
+    }
+
+    @Test
+    fun ampliacionExitosaConservaVencimientoYCobraSoloAdicionales() = runTest {
+        val licencias = MemLic()
+        val previaVence = ahoraSec + 5 * 86_400L
+        licencias.upsert(anterior("previa-ampliable", venceSec = previaVence))
+
+        val solAmplia = sol().copy(
+            secundarias = 5,
+            amplia = "previa-ampliable",
+        )
+
+        val r = emitir(solAmplia, licencias, txNumber = "TX-AMP") as Outcome.Ok
+        val nueva = r.value.licencia
+
+        assertThat(nueva.secundarias).isEqualTo(5)
+        assertThat(nueva.expiresAtIso).isEqualTo(Instant.ofEpochSecond(previaVence).toString())
+        assertThat(nueva.precioCobrado).isEqualTo(3_000) // (5 - 2) * 1_000
+    }
+
+    @Test
+    fun ampliacionRechazaCondicionesInvalidas() = runTest {
+        val licencias = MemLic()
+        licencias.upsert(anterior("vencida", venceSec = ahoraSec - 2 * 86_400L))
+        licencias.upsert(anterior("ajena", deviceId = "SPVI:otro-disp", venceSec = ahoraSec + 5 * 86_400L))
+        licencias.upsert(anterior("vigente", venceSec = ahoraSec + 5 * 86_400L))
+
+        val rVencida = emitir(sol().copy(secundarias = 4, amplia = "vencida"), licencias) as Outcome.Err
+        val rAjena = emitir(sol().copy(secundarias = 4, amplia = "ajena"), licencias) as Outcome.Err
+        val rIgual = emitir(sol().copy(secundarias = 2, amplia = "vigente"), licencias) as Outcome.Err
+
+        assertThat(rVencida.error).isEqualTo(AppError.AmpliacionInvalida)
+        assertThat(rAjena.error).isEqualTo(AppError.AmpliacionInvalida)
+        assertThat(rIgual.error).isEqualTo(AppError.AmpliacionInvalida)
+    }
 }

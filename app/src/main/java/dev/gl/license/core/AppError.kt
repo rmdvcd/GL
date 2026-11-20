@@ -14,6 +14,8 @@ sealed class AppError(val userMessage: String) : Exception(userMessage) {
     data object DevicePubRequired : AppError("La solicitud debe incluir la clave pública del dispositivo (devicePub).")
     data object RequestExpired : AppError("La solicitud está fuera del margen permitido (72 horas de antigüedad y 2 horas de desfase futuro como máximo).")
     data object ClockFailure : AppError("No se pudo comprobar la hora actual para validar la solicitud.")
+    data object AmpliacionInvalida : AppError("La ampliación requiere una licencia vigente del mismo dispositivo y tipo en el registro, con más secundarias (máx. 10).")
+    data object RecuperacionInvalida : AppError("La recuperación requiere una licencia previa válida, vigente y del mismo carné de identidad en el registro.")
     data object Generic : AppError("No se pudo completar la operación.")
 }
 

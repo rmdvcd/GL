@@ -19,4 +19,6 @@ data class SolicitudSpviV2(
     @SerialName("devicePub") val devicePub: String,
     @SerialName("secundarias") val secundarias: Int,
     @SerialName("renueva") val renueva: String? = null,
+    @SerialName("amplia") val amplia: String? = null,
+    @SerialName("recupera") val recupera: String? = null,
 )

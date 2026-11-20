@@ -161,7 +161,20 @@ object Spvi23 {
         if (!nonceRe.matches(dto.nonce) || dto.solicitadaEn.length > 64) {
             return Outcome.Err(AppError.InvalidPayload)
         }
+        val countExcluyentes = listOfNotNull(dto.renueva, dto.amplia, dto.recupera).size
+        if (countExcluyentes > 1) {
+            return Outcome.Err(AppError.InvalidPayload)
+        }
         if (dto.renueva != null && !renewalIdRe.matches(dto.renueva)) {
+            return Outcome.Err(AppError.InvalidPayload)
+        }
+        if (dto.amplia != null && !renewalIdRe.matches(dto.amplia)) {
+            return Outcome.Err(AppError.InvalidPayload)
+        }
+        if (dto.recupera != null && !renewalIdRe.matches(dto.recupera)) {
+            return Outcome.Err(AppError.InvalidPayload)
+        }
+        if (dto.amplia != null && dto.secundarias <= 0) {
             return Outcome.Err(AppError.InvalidPayload)
         }
         when (val s = Secundarias.validar(null, dto.deviceId, dto.secundarias)) {
@@ -287,14 +300,49 @@ object Spvi23 {
         }
     }
 
-    /** Verifica firma del código con la pública de firma. Acepta con o sin prefijo. Nunca lanza. */
+    /**
+     * Extrae los 210 caracteres Base64url de una licencia corta tras `SPVI2:`,
+     * ignorando espacios en blanco y saltos de línea (tolerante a transporte SMS/WhatsApp).
+     * Si no trae el prefijo `SPVI2:`, limpia espacios y valida que sean 210 caracteres válidos.
+     */
+    fun extraerCodigoLicencia(raw: String): String? {
+        if (raw.length > MAX_REQUEST_TEXT_CHARS) return null
+        var desde = raw.indexOf("SPVI2:")
+        while (desde >= 0) {
+            val sb = StringBuilder(210)
+            var i = desde + "SPVI2:".length
+            while (i < raw.length && sb.length < 210) {
+                val c = raw[i]
+                when {
+                    (c in 'A'..'Z') || (c in 'a'..'z') || (c in '0'..'9') || c == '-' || c == '_' -> sb.append(c)
+                    c.isWhitespace() -> Unit
+                    else -> break
+                }
+                i++
+            }
+            if (sb.length == 210) return sb.toString()
+            desde = raw.indexOf("SPVI2:", desde + 1)
+        }
+        val sb = StringBuilder(210)
+        for (c in raw) {
+            if (c.isWhitespace()) continue
+            if ((c in 'A'..'Z') || (c in 'a'..'z') || (c in '0'..'9') || c == '-' || c == '_') {
+                sb.append(c)
+            } else {
+                return null
+            }
+        }
+        return if (sb.length == 210) sb.toString() else null
+    }
+
+    /** Verifica firma del código con la pública de firma. Acepta con o sin prefijo y tolera espacios/texto. Nunca lanza. */
     fun verificar(codigo: String, firmaPub: PublicKey): Boolean {
         return try {
-            val encoded = codigo.removePrefix("SPVI2:").trim()
-            if (encoded.length > MAX_LICENSE_CODE_CHARS || encoded.length != 210) return false
+            val encoded = extraerCodigoLicencia(codigo) ?: return false
             val raw = b64urlD(encoded)
             if (raw.size != 33 + 44 + 16 + 64) return false
             val epk = raw.copyOfRange(0, 33)
+            if (epk[0] != 0x02.toByte() && epk[0] != 0x03.toByte()) return false
             val ct = raw.copyOfRange(33, 77)
             val tag = raw.copyOfRange(77, 93)
             val firma = raw.copyOfRange(93, 157)
@@ -303,10 +351,10 @@ object Spvi23 {
                 val s = java.security.Signature.getInstance("SHA256withECDSAinP1363Format")
                 s.initVerify(firmaPub)
                 s.update(msg)
-                s.verify(firma)
+                if (s.verify(firma)) return true
             } catch (_: Exception) {
-                CryptoEngine.verify(firmaPub, msg, rawToDer(firma))
             }
+            CryptoEngine.verify(firmaPub, msg, rawToDer(firma))
         } catch (_: Exception) {
             false
         }

@@ -17,6 +17,22 @@ object PrecioTabla {
     fun total(tipo: TipoLicencia, secundarias: Int): Int =
         base.getValue(tipo) + extraPorSecundaria.getValue(tipo) * secundarias
 
+    fun porSecundaria(tipo: TipoLicencia): Int =
+        extraPorSecundaria.getValue(tipo)
+
+    fun ampliacion(tipo: TipoLicencia, adicionales: Int): Int =
+        extraPorSecundaria.getValue(tipo) * adicionales.coerceAtLeast(0)
+
+    fun desgloseAmpliacion(tipo: TipoLicencia, previas: Int, totales: Int): String {
+        val adicionales = (totales - previas).coerceAtLeast(0)
+        val nombre = tipo.name.lowercase().replaceFirstChar { it.uppercase() }
+        return "Ampliación $nombre: +$adicionales secundarias ($previas → $totales) × " +
+            "${miles(porSecundaria(tipo))} = ${miles(ampliacion(tipo, adicionales))} CUP"
+    }
+
+    fun desgloseRecuperacion(prevId: String): String =
+        "Recuperación: gratuita (sustituye y revoca licencia anterior: $prevId)"
+
     fun desglose(tipo: TipoLicencia, secundarias: Int?): String {
         val valor = secundarias ?: return "Secundarias: no indicado (app anterior) · ${miles(total(tipo, 0))} CUP"
         val nombre = tipo.name.lowercase().replaceFirstChar { it.uppercase() }
