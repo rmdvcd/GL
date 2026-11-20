@@ -1,8 +1,12 @@
 package dev.gl.license.domain.usecase
 
+import dev.gl.license.core.AppError
+import dev.gl.license.core.Outcome
 import dev.gl.license.domain.model.EstadoLicencia
 import dev.gl.license.domain.model.Licencia
+import dev.gl.license.domain.model.PrecioTabla
 import dev.gl.license.domain.model.SolicitudLicencia
+import dev.gl.license.domain.model.SolicitudSpviV2
 import dev.gl.license.domain.model.TipoLicencia
 import dev.gl.license.domain.repository.LicenciaRepository
 import dev.gl.license.domain.repository.SecureClock
@@ -225,5 +229,87 @@ class EvaluarSolicitudHistorialUseCase @Inject constructor(
         }
 
         return EvaluacionHistorial.NuevaSolicitud
+    }
+
+    /**
+     * Valida en seco una solicitud SPVI2 de ampliación de apps secundarias (`amplia != null`)
+     * y devuelve el desglose exacto a cobrar, o `null` si no es ampliación.
+     */
+    suspend fun evaluarAmpliacionSpvi(sol: SolicitudSpviV2): Outcome<String?> {
+        val idAmplia = sol.amplia ?: return Outcome.Ok(null)
+        val ahoraSec = try {
+            Instant.parse(clock.nowIso()).epochSecond
+        } catch (_: Exception) {
+            return Outcome.Err(AppError.ClockFailure)
+        }
+        val prev = try {
+            licencias.getById(idAmplia.trim())
+                ?: licencias.all().firstOrNull { it.id.equals(idAmplia.trim(), ignoreCase = true) }
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            return Outcome.Err(AppError.RegistryFailure)
+        } ?: return Outcome.Err(AppError.AmpliacionInvalida)
+
+        val prevSec = (prev.secundarias ?: 0).coerceAtLeast(0)
+        val prevVenceSec = try {
+            prev.expiresAtIso?.let { Instant.parse(it).epochSecond }
+        } catch (_: Exception) {
+            return Outcome.Err(AppError.AmpliacionInvalida)
+        }
+        val esPerpetua = prev.type == TipoLicencia.PERPETUA || prev.status == EstadoLicencia.PERPETUA
+        val vigente = prev.status != EstadoLicencia.REVOCADA &&
+            prev.status != EstadoLicencia.VENCIDA &&
+            (esPerpetua || (prevVenceSec != null && prevVenceSec > ahoraSec))
+        if (!vigente ||
+            prev.deviceId != sol.deviceId ||
+            prev.type != sol.tipo ||
+            sol.secundarias !in (prevSec + 1)..10
+        ) {
+            return Outcome.Err(AppError.AmpliacionInvalida)
+        }
+        return Outcome.Ok(PrecioTabla.desgloseAmpliacion(prev.type, prevSec, sol.secundarias))
+    }
+
+    /**
+     * Valida en seco una solicitud SPVI2 de recuperación de licencia (`recupera != null`)
+     * y devuelve el mensaje descriptivo, o `null` si no es recuperación.
+     * Verifica que la licencia previa exista, no esté revocada ni vencida, y pertenezca al mismo carné de identidad.
+     */
+    suspend fun evaluarRecuperacionSpvi(sol: SolicitudSpviV2): Outcome<String?> {
+        val idRecupera = sol.recupera ?: return Outcome.Ok(null)
+        val ahoraSec = try {
+            Instant.parse(clock.nowIso()).epochSecond
+        } catch (_: Exception) {
+            return Outcome.Err(AppError.ClockFailure)
+        }
+        val prev = try {
+            licencias.getById(idRecupera.trim())
+                ?: licencias.all().firstOrNull { it.id.equals(idRecupera.trim(), ignoreCase = true) }
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            return Outcome.Err(AppError.RegistryFailure)
+        } ?: return Outcome.Err(AppError.RecuperacionInvalida)
+
+        if (prev.status == EstadoLicencia.REVOCADA || prev.status == EstadoLicencia.VENCIDA) {
+            return Outcome.Err(AppError.RecuperacionInvalida)
+        }
+        val esPerpetua = prev.type == TipoLicencia.PERPETUA || prev.status == EstadoLicencia.PERPETUA
+        val prevVenceSec = try {
+            prev.expiresAtIso?.let { Instant.parse(it).epochSecond }
+        } catch (_: Exception) {
+            null
+        }
+        if (!esPerpetua && (prevVenceSec == null || prevVenceSec <= ahoraSec)) {
+            return Outcome.Err(AppError.RecuperacionInvalida)
+        }
+        if (!prev.nationalId.trim().equals(sol.ci.trim(), ignoreCase = true)) {
+            return Outcome.Err(AppError.RecuperacionInvalida)
+        }
+
+        val tipoNombre = prev.type.name.lowercase().replaceFirstChar { it.uppercase() }
+        val aviso = "Recuperación de licencia ($tipoNombre): transfiere a este dispositivo y revoca la licencia previa (${prev.id}). Gratuita."
+        return Outcome.Ok(aviso)
     }
 }

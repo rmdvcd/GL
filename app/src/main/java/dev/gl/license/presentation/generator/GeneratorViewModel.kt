@@ -50,6 +50,7 @@ data class GeneratorUi(
     val encryptedLicense: String? = null,
     val shareBody: String? = null,
     val spvi: SolicitudSpviV2? = null,
+    val spviPrecioDesglose: String? = null,
     val renuevaAviso: String? = null,
     val pending: Licencia? = null,
     val shareLaunched: Boolean = false,
@@ -131,6 +132,7 @@ class GeneratorViewModel @Inject constructor(
                 paid = false,
                 solicitud = null,
                 spvi = null,
+                spviPrecioDesglose = null,
                 renuevaAviso = null,
                 canRegister = false,
                 shareLaunched = false,
@@ -149,11 +151,50 @@ class GeneratorViewModel @Inject constructor(
         rawValidationJob = viewModelScope.launch {
             if (Spvi23.contieneCodigo(raw)) {
                 when (val r = abrirSpvi.abrirSolicitud(raw)) {
-                    is Outcome.Ok -> if (validationGeneration == rawValidationGeneration) {
-                        _ui.update { it.copy(spvi = r.value, error = null) }
+                    is Outcome.Ok -> {
+                        val sol = r.value
+                        val recEval = when (val rec = evaluarHistorial.evaluarRecuperacionSpvi(sol)) {
+                            is Outcome.Ok -> rec.value
+                            is Outcome.Err -> {
+                                if (validationGeneration == rawValidationGeneration) {
+                                    _ui.update { it.copy(spvi = null, spviPrecioDesglose = null, error = rec.error.userMessage) }
+                                }
+                                return@launch
+                            }
+                        }
+                        val ampDesglose = when (val amp = evaluarHistorial.evaluarAmpliacionSpvi(sol)) {
+                            is Outcome.Ok -> amp.value
+                            is Outcome.Err -> {
+                                if (validationGeneration == rawValidationGeneration) {
+                                    _ui.update { it.copy(spvi = null, spviPrecioDesglose = null, error = amp.error.userMessage) }
+                                }
+                                return@launch
+                            }
+                        }
+                        val precioDesglose = when {
+                            sol.recupera != null -> recEval ?: PrecioTabla.desgloseRecuperacion(sol.recupera)
+                            sol.amplia != null -> ampDesglose
+                            else -> null
+                        }
+                        val aviso = when {
+                            sol.recupera != null -> recEval
+                            sol.amplia != null -> "Ampliación de apps secundarias: conserva la fecha de vencimiento de la licencia instalada."
+                            else -> null
+                        }
+                        if (validationGeneration == rawValidationGeneration) {
+                            _ui.update {
+                                it.copy(
+                                    spvi = sol,
+                                    spviPrecioDesglose = precioDesglose,
+                                    renuevaAviso = aviso,
+                                    paid = sol.recupera != null,
+                                    error = null,
+                                )
+                            }
+                        }
                     }
                     is Outcome.Err -> if (validationGeneration == rawValidationGeneration) {
-                        _ui.update { it.copy(spvi = null, error = r.error.userMessage) }
+                        _ui.update { it.copy(spvi = null, spviPrecioDesglose = null, error = r.error.userMessage) }
                     }
                 }
                 return@launch
@@ -288,7 +329,8 @@ class GeneratorViewModel @Inject constructor(
 
     fun setPaid(v: Boolean) {
         val current = _ui.value
-        if (!current.txMatch) return
+        val isRecovery = current.spvi?.recupera != null
+        if (!isRecovery && !current.txMatch) return
         if (current.solicitud != null || current.spvi != null) {
             generationGeneration++
             generationJob?.cancel()
@@ -298,18 +340,19 @@ class GeneratorViewModel @Inject constructor(
 
     fun generateLicense() {
         val current = _ui.value
-        if (!current.paid || !current.txMatch || current.loading ||
+        val isRecovery = current.spvi?.recupera != null
+        if ((!isRecovery && (!current.paid || !current.txMatch)) || current.loading ||
             current.pending != null || current.encryptedLicense != null ||
             generationJob?.isCompleted == false
         ) return
         val generation = ++generationGeneration
-        val tx = current.txCliente.trim()
+        val tx = if (isRecovery) null else current.txCliente.trim()
         _ui.update { it.copy(loading = true, error = null, success = null) }
         generationJob = viewModelScope.launch {
             try {
                 val spvi = current.spvi
                 if (spvi != null) {
-                    when (val r = emitirSpvi(spvi, pagoConfirmado = true, txNumber = tx)) {
+                    when (val r = emitirSpvi(spvi, pagoConfirmado = isRecovery || current.paid, txNumber = tx)) {
                         is Outcome.Err -> if (isCurrentGeneration(generation, current.raw, tx)) {
                             _ui.update { it.copy(error = r.error.userMessage) }
                         }
@@ -325,7 +368,7 @@ class GeneratorViewModel @Inject constructor(
                                     renuevaAviso = if (emitida.renuevaIgnorada) {
                                         "Renovación no aplicada: se emitió como licencia nueva."
                                     } else {
-                                        null
+                                        current.renuevaAviso
                                     },
                                     success = "Licencia generada.",
                                     shareLaunched = true,
@@ -403,13 +446,12 @@ class GeneratorViewModel @Inject constructor(
         }
     }
 
-    private fun isCurrentGeneration(generation: Long, raw: String, tx: String): Boolean {
+    private fun isCurrentGeneration(generation: Long, raw: String, tx: String?): Boolean {
         val state = _ui.value
+        val isRecovery = state.spvi?.recupera != null
         return generation == generationGeneration &&
             state.raw == raw &&
-            state.txCliente.trim() == tx &&
-            state.paid &&
-            state.txMatch
+            (isRecovery || (state.txCliente.trim() == (tx ?: "") && state.paid && state.txMatch))
     }
 
     fun onReturnedFromShare() {

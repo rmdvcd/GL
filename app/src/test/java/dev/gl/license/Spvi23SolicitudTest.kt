@@ -50,4 +50,32 @@ class Spvi23SolicitudTest {
         assertThat(Spvi23.contieneCodigo(oversized)).isFalse()
         assertThat(Spvi23.extraerCodigo(oversized)).isInstanceOf(Outcome.Err::class.java)
     }
+
+    @Test
+    fun sellarAbrirRecuperacionYAmpliacion() {
+        val gl = CryptoEngine.generateEphemeralP256()
+
+        val rec = dto().copy(recupera = "lic-antigua-uuid")
+        val codRec = Spvi23.sellarSolicitud(rec, gl.public)
+        val resRec = Spvi23.abrir(codRec, gl.private)
+        assertThat((resRec as Outcome.Ok).value).isEqualTo(rec)
+
+        val amp = dto().copy(secundarias = 5, amplia = "lic-activa-uuid")
+        val codAmp = Spvi23.sellarSolicitud(amp, gl.public)
+        val resAmp = Spvi23.abrir(codAmp, gl.private)
+        assertThat((resAmp as Outcome.Ok).value).isEqualTo(amp)
+    }
+
+    @Test
+    fun rechazaCamposExcluyentesSimultaneos() {
+        val gl = CryptoEngine.generateEphemeralP256()
+
+        val conflicto = dto().copy(renueva = "lic-1", recupera = "lic-2")
+        val codConflicto = Spvi23.sellarSolicitud(conflicto, gl.public)
+        assertThat(Spvi23.abrir(codConflicto, gl.private)).isInstanceOf(Outcome.Err::class.java)
+
+        val conflictoAmp = dto().copy(renueva = "lic-1", amplia = "lic-2")
+        val codConflictoAmp = Spvi23.sellarSolicitud(conflictoAmp, gl.public)
+        assertThat(Spvi23.abrir(codConflictoAmp, gl.private)).isInstanceOf(Outcome.Err::class.java)
+    }
 }

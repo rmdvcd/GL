@@ -77,6 +77,8 @@
     <string name="generator_request_step">1. Solicitud</string>
     <string name="generator_payment_step">2. Confirmar pago</string>
     <string name="generator_payment_supporting">Confirma el cobro antes de crear la licencia.</string>
+    <string name="generator_recovery_step">2. Recuperación de licencia</string>
+    <string name="generator_recovery_supporting">Recuperación gratuita: transfiere la licencia anterior a este dispositivo y revoca la previa en el registro. No requiere pago.</string>
     <string name="generator_response_step">3. Respuesta para el cliente</string>
     <string name="cd_clipboard_detected">Solicitud detectada del portapapeles</string>
     <string name="cd_encrypted_request">Solicitud cifrada</string>

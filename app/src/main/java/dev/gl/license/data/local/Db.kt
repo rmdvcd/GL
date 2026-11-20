@@ -41,7 +41,7 @@ interface LicenseDao {
     @Query("SELECT * FROM licenses ORDER BY issuedAtIso DESC")
     suspend fun all(): List<LicenseEntity>
 
-    @Query("SELECT * FROM licenses WHERE id = :id LIMIT 1")
+    @Query("SELECT * FROM licenses WHERE id = :id COLLATE NOCASE LIMIT 1")
     suspend fun byId(id: String): LicenseEntity?
 
     @Query("SELECT COUNT(*) FROM licenses WHERE txNumber IS NOT NULL AND txNumber != '' AND txNumber COLLATE NOCASE = :txNumber COLLATE NOCASE")
