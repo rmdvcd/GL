@@ -56,7 +56,7 @@ test("el verificador legacy es un punto de extension separado", async () => {
 });
 
 test("el cliente no contiene claves privadas de GL", async () => {
-  const dir = new URL("../src/client/", import.meta.url).pathname;
+  const dir = join(import.meta.dirname, "../src/client/");
   const files = await readdir(dir);
   for (const file of files) {
     const content = await readFile(join(dir, file), "utf8");
