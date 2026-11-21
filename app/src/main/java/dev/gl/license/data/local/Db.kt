@@ -32,6 +32,7 @@ data class LicenseEntity(
     val version: Int,
     val txNumber: String? = null,
     @androidx.room.ColumnInfo(defaultValue = "0") val verificacionManual: Boolean = false,
+    @androidx.room.ColumnInfo(defaultValue = "'EMISION'") val origen: String = "EMISION",
 )
 
 @Entity(tableName = "consumed_nonces")
@@ -90,6 +91,25 @@ interface LicenseDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: LicenseEntity)
+
+    /** El importador antiguo también debe conservar las reservas y las revocaciones locales. */
+    @androidx.room.Transaction
+    suspend fun importRows(items: List<LicenseEntity>) {
+        for (incoming in items) {
+            val old = byId(incoming.id)
+            if (old != null && old.issuedAtIso > incoming.issuedAtIso) continue
+            val entity = if (old == null) incoming else incoming.copy(
+                status = if (old.status == "REVOCADA") old.status else incoming.status,
+                precioCobrado = incoming.precioCobrado ?: old.precioCobrado,
+                origen = if (incoming.origen == "EMISION") old.origen else incoming.origen,
+                verificacionManual = incoming.verificacionManual || old.verificacionManual,
+            )
+            if (old == null || old.txNumber != entity.txNumber) entity.txNumber?.let {
+                reserve(TxReservation(txKey(it), entity.id, entity.issuedAtIso))
+            }
+            upsert(entity)
+        }
+    }
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(items: List<LicenseEntity>)

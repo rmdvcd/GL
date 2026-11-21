@@ -12,7 +12,7 @@ class SpviMensajeTest {
     @Test
     fun mensajeDoradoExacto() {
         val esperado =
-            "Licencia SPVI\n" +
+            "Licencia Shalev\n" +
                 "Tipo: Mensual\n" +
                 "Apps secundarias: 2\n" +
                 "Emitida: 03/10/2026\n" +

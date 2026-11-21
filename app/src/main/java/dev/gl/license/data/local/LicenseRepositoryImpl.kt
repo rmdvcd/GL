@@ -48,7 +48,7 @@ class LicenseRepositoryImpl @Inject constructor(
                 else -> lic
             }
         }
-        dao.upsertAll(toWrite.map { it.toEntity() })
+        dao.importRows(toWrite.map { it.toEntity() })
         Outcome.Ok(toWrite.size)
     } catch (_: Exception) {
         Outcome.Err(AppError.ImportFailure)

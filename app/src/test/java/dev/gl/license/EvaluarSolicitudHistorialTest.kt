@@ -188,7 +188,7 @@ class EvaluarSolicitudHistorialTest {
                 issuedIso = fixedNow.minusSeconds(5 * 86400L).toString(),
                 expiresIso = vence,
                 precioCobrado = 0,
-            )
+            ).copy(origen = dev.gl.license.domain.model.OrigenLicencia.PRUEBA)
         )
 
         val uc = EvaluarSolicitudHistorialUseCase(repo, clock)
@@ -198,6 +198,8 @@ class EvaluarSolicitudHistorialTest {
         val act = res as EvaluacionHistorial.ActivaDiferente
         assertThat(act.diasRestantes).isEqualTo(0L)
         assertThat(act.aviso).contains("periodo de prueba no se acumula")
+        repo.upsert(act.activa.copy(origen = dev.gl.license.domain.model.OrigenLicencia.RECUPERACION))
+        assertThat((uc(req(tipo = TipoLicencia.ANUAL)) as EvaluacionHistorial.ActivaDiferente).diasRestantes).isEqualTo(10L)
     }
 
     @Test

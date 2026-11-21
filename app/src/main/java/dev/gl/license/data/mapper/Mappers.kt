@@ -28,6 +28,7 @@ fun IssuedLicense.toEntity() = LicenseEntity(
     nonce = nonce,
     version = version,
     txNumber = txNumber,
+    origen = origen.name,
     verificacionManual = verificacionManual,
 )
 
@@ -62,5 +63,6 @@ fun LicenseEntity.toDomain() = IssuedLicense(
     codigoCorto = codigoCorto,
     nonce = nonce,
     txNumber = txNumber,
+    origen = dev.gl.license.domain.model.OrigenLicencia.valueOf(origen),
     verificacionManual = verificacionManual,
 )

@@ -251,7 +251,7 @@ class GeneratorViewModelTest {
         vm.setPaid(true)
         vm.generateLicense()
 
-        assertThat(vm.ui.value.shareBody).startsWith("Licencia SPVI")
+        assertThat(vm.ui.value.shareBody).startsWith("Licencia Shalev")
         assertThat(vm.ui.value.shareBody).contains("SPVI2:CODIGO")
         assertThat(vm.ui.value.pending?.codigoCorto).isEqualTo("SPVI2:CODIGO")
         assertThat(vm.ui.value.renuevaAviso).isNull()

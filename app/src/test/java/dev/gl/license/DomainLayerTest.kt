@@ -163,7 +163,7 @@ class DomainLayerTest {
         assertThat(ok.value.first.expiresAtIso).isEqualTo("2026-01-31T00:00:00Z")
         assertThat(ok.value.first.status).isEqualTo(EstadoLicencia.ACTIVA)
         assertThat(ok.value.second).isEqualTo("ENVELOPE")
-        val perp = uc(req().copy(type = TipoLicencia.PERPETUA), true) as Outcome.Ok
+        val perp = uc(req().copy(type = TipoLicencia.PERPETUA, nonce = "BBBBBBBBBBBBBBBBBBBBBB=="), true) as Outcome.Ok
         assertThat(perp.value.first.expiresAtIso).isNull()
         assertThat(perp.value.first.status).isEqualTo(EstadoLicencia.PERPETUA)
     }
