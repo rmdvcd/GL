@@ -15,3 +15,8 @@
 .kotlin/
 *.log
 /services/secrets/
+
+# Material local de la autoridad de directorio
+*.key.enc
+directorio.src.json
+directorio.src.json.lock

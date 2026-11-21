@@ -3,14 +3,7 @@
 Servicio serverless que canjea códigos de **16 caracteres** (`XXXX-XXXX-XXXX-XXXX`),
 acuñados por GL, por una **licencia firmada y ligada a una instalación**.
 
-> **Estado:** el servicio y el cliente de referencia están implementados y sus
-> pruebas pasan en este entorno. Los tres documentos de Shalev se recibieron y
-> revisaron, además de una exportación Repomix de DShalev (Python/FastAPI), pero
-> **el repositorio de DShalev sigue sin permiso de lectura**, así
-> que no se ha integrado en su código. **No se ha desplegado ni se ha probado
-> contra un GL real o un build de DShalev.** No debe declararse listo para uso
-> comercial hasta completar la lista de
-> [`Pendiente`](#pendiente-para-uso-comercial).
+> **Estado:** núcleo, adaptador SQLite y cliente de referencia probados en Node. Shalev incluye un cliente Python en `Web-Desktop/dshalev/licencia/`; el canje comercial está deshabilitado hasta desplegar y fijar claves y URL. No se probó en Cloudflare ni con los builds reales.
 
 ## Decisiones de arquitectura
 
@@ -23,7 +16,7 @@ acuñados por GL, por una **licencia firmada y ligada a una instalación**.
 | Transferencia | Manual, autorizada por el operador hacia el thumbprint de la nueva instalación. Conserva el vencimiento restante. |
 | Apps secundarias | **0 por defecto** (`MAX_SECUNDARIAS=0`). El cliente de referencia ya emite **sub-tokens firmados**; DShalev aún no tiene la pantalla que los emite, así que vender `secundarias > 0` sigue bloqueado hasta integrarla. |
 | Restauración | Misma clave + mismo código → el servicio devuelve la misma licencia (`licenseId` y vencimiento intactos). |
-| Renovación | Un código nuevo conserva los días restantes de la licencia activa de la misma instalación/app (rollover); si ya venció, empieza ahora. **Las renovaciones simultáneas de distintos códigos no están serializadas y pueden perder días; pendiente antes de uso comercial.** |
+| Renovación | Un código nuevo conserva los días restantes de la licencia activa de la misma instalación/app (rollover); si ya venció, empieza ahora. El INSERT calcula el vencimiento dentro de la transacción (`8c3dbe6`). |
 
 ## Flujo
 
@@ -198,6 +191,8 @@ offline sigue valiendo hasta su vencimiento.
 `CODE_UNAVAILABLE` unifica inexistente, revocado y app equivocada para no dar un
 oráculo. `CODE_ALREADY_REDEEMED` solo se devuelve a quien ya tiene el código.
 
+Tras transferir un rollover, restaura con el código más reciente: los períodos absorbidos quedan revocados. `sql-revoke --license <id>` revoca por instalación; `sql-revoke --code <código>` revoca solo ese código y sus licencias. Usa una terminal privada sin historial para esta última opción.
+
 ## Comportamiento ante incidentes
 
 | Situación | Comportamiento |
@@ -223,7 +218,10 @@ oráculo. `CODE_ALREADY_REDEEMED` solo se devuelve a quien ya tiene el código.
 
 ## Despliegue (Cloudflare Workers + D1)
 
-1. Crear D1 y aplicar el esquema:
+Configura `ALLOWED_APPS` como lista separada por comas (propuestos: `DSHALEV`, `SHALEV-ANDROID`, `SHALEV-IOS`; confirmar antes del despliegue). Copia `examples/wrangler.jsonc` a `wrangler.jsonc` antes de ejecutar Wrangler. Los bindings `RL_IP` y `RL_DEVICE` son obligatorios y deniegan si fallan. No escriben contadores D1. El adaptador para pruebas con contadores limpia ventanas de más de un día de forma probabilística. Guía ampliada pendiente de entrega: `docs/GUIA_CLOUDFLARE_WORKERS_D1.md`.
+El SQL de importación es reintentable (INSERT OR IGNORE); no añadas BEGIN/COMMIT al archivo para D1.
+
+1. Crear D1, copiar el `database_id` al archivo de configuración local y aplicar el esquema:
 
    ```bash
    wrangler d1 create gl-redeem
@@ -295,7 +293,7 @@ cd services/redeem
 npm test
 ```
 
-107 pruebas con `node:test` (sin dependencias):
+119 pruebas con `node:test` (sin dependencias):
 
 - criptografía y canonicalización, DER↔P1363;
 - lote: firma, tamper, duplicados, app, límites, deadline;
@@ -313,8 +311,7 @@ npm test
   API D1), incluyendo el índice único parcial y el `batch` transaccional.
 
 El cliente de referencia (`src/client/redeem-client.js`) es el que se prueba de
-extremo a extremo. **No hay pruebas de DShalev** porque su repositorio sigue
-sin acceso (403).
+extremo a extremo. Las pruebas aquí no ejecutan el cliente Python de Shalev.
 
 Además de las pruebas, en esta sesión se ejecutó el flujo operativo real:
 `gen-keys` → `mint-batch` → `import-local` → servidor Node en `0.0.0.0:8787` →
@@ -324,8 +321,7 @@ thumbprint del dispositivo.
 
 ## Compatibilidad con lo existente
 
-- No se modifica `Spvi23`, `HybridBox`, el contrato v1 ni la app Android salvo
-  el caso de uso aditivo de acuñación de lotes.
+- No cambian `Spvi23`, `HybridBox` ni los formatos existentes.
 - `SPVI2:` sigue siendo un formato distinto: el cliente de canje lo rechaza y
   expone `verifyLegacy` para el verificador existente.
 - La mera validez del formato 4×4 no activa nada: `activate()` siempre exige
@@ -333,8 +329,7 @@ thumbprint del dispositivo.
 
 ## Pendiente para uso comercial
 
-1. **DShalev**: integrar el cliente en su arquitectura real y ejecutar sus
-   pruebas. Requiere los tres documentos y el repositorio.
+1. **DShalev**: configurar y ejecutar las pruebas del cliente Python real.
 2. **GL real**: exportar un lote desde el teléfono emisor y canjearlo con un
    build de DShalev. El caso de uso Kotlin **no se ha compilado** aquí (no hay
    JDK/Android SDK/Maven). El vector cruzado reduce el riesgo, no lo elimina.
@@ -342,7 +337,7 @@ thumbprint del dispositivo.
    tasa del borde y copias de seguridad.
 4. **Claves**: definir custodia, rotación y procedimiento de compromiso. Hoy
    `kid` es único y no hay rotación.
-5. **UI de operador en GL**: falta la pantalla para acuñar/exportar lotes.
+5. **UI de operador en GL**: validar la nueva pantalla Lotes en un dispositivo.
 6. **Transferencia**: definir el canal por el que el cliente comunica su
    thumbprint al operador (correo, WhatsApp, etc.) sin registrar datos
    personales innecesarios.
@@ -357,7 +352,7 @@ thumbprint del dispositivo.
     efectiva sin conexión, hace falta otra decisión (y probablemente hardware).
 11. **Importación D1**: `importBatch` no es transaccional por lote en el
     adaptador D1 (sí lo es cada canje). Un fallo a mitad deja códigos ya
-    importados; reejecutar el SQL continúa y los duplicados fallan visiblemente.
+    importados; reejecutar el SQL continúa y los duplicados se omiten.
 
 ### Interoperabilidad con DShalev
 
@@ -366,8 +361,3 @@ peticiones, licencia, estado y sub-token firmados, SPKI públicas y bytes canón
 No incluye claves privadas ni representa claves de producción. El test
 `test/dshalev-vector.test.js` comprueba que el contrato siga coincidiendo.
 El prompt para la implementación Python está en `docs/PROMPT_DSHALEV.md`.
-
-Tras transferir un rollover, restaura con el código más reciente: los períodos anteriores quedan absorbidos y revocados en la instalación de origen.
-
-Configura `ALLOWED_APPS` como lista separada por comas (propuestos: `DSHALEV`, `SHALEV-ANDROID`, `SHALEV-IOS`; confirmar antes del despliegue). Copia `examples/wrangler.jsonc` a `wrangler.jsonc` antes de ejecutar Wrangler. Los bindings `RL_IP` y `RL_DEVICE` son obligatorios y deniegan si fallan. No escriben contadores D1. El adaptador para pruebas con contadores limpia ventanas de más de un día de forma probabilística. Guía ampliada pendiente de entrega: `docs/GUIA_CLOUDFLARE_WORKERS_D1.md`.
-El SQL de importación es reintentable (INSERT OR IGNORE); no añadas BEGIN/COMMIT al archivo para D1.

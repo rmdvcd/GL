@@ -49,3 +49,5 @@ El archivo tiene un máximo de 32 MiB y 10 000 entradas; la lectura SAF se detie
 - No es un formato inter-app de terceros.
 - No está compactado.
 - Futuros cambios incompatibles en el paquete deben incrementar su byte de formato, manteniendo el importador legacy cuando sea viable; no requieren cambiar el contrato de envelopes/licencias v1.
+
+Room v7 conserva `origen` y `verificacionManual` en los metadatos de la entrada de archivo v2, junto a `precioCobrado`; no se incorporan al JSON de la licencia firmada. En archivos anteriores se asumen EMISION y false. El archivo exporta licencias, no el inventario de lotes ni el historial completo de nonces consumidos.

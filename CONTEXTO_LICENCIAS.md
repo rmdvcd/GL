@@ -1,5 +1,7 @@
 # Contexto GL — análisis y clientes de licencia compatibles
 
+**Flujos:** el canje comercial es la vía principal cuando esté desplegado y configurado; `SPVI2:` sigue siendo el respaldo offline. Véase el [Anexo A: directorio de confianza](docs/DIRECTORIO_V1.md).
+
 Para **otras IAs** o equipos que: (a) auditen GL, o (b) implementen una **app cliente** cuyo sistema de licencias hable el mismo contrato que este generador.
 
 GL es un **emisor offline** en Android (Kotlin, Compose, minSdk 26, target 35). El desarrollador genera licencias para **su propio** software. No hay backend, Firebase, analytics ni permiso `INTERNET`.

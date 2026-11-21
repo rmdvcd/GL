@@ -21,8 +21,7 @@ import javax.inject.Inject
  * El servicio de canje verifica la firma con la publica `gl-sign-v1` que el
  * operador fije en su configuracion. La clave privada nunca sale del Keystore.
  *
- * No hay UI todavia: la exportacion del JSON se conecta en una pantalla de
- * operador cuando se autorice el despliegue. Ver `services/redeem/README.md`.
+ * La pantalla Lotes exporta el JSON por SAF para el operador.
  */
 class CrearLoteCanjeUseCase @Inject constructor(
     private val clock: SecureClock,

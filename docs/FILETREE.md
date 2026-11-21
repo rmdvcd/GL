@@ -22,7 +22,7 @@ GL/
 │       ├── src/                   # servicio, D1, HTTP, CLI y cliente
 │       ├── test/                  # pruebas node:test (106)
 │       ├── migrations/            # esquema D1
-│       └── examples/wrangler.toml
+│       └── examples/wrangler.jsonc
 ├── docs/
 │   ├── ARCHITECTURE.md
 │   ├── FILETREE.md
