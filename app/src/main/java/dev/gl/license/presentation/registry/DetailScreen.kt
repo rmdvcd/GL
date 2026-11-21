@@ -60,6 +60,12 @@ class DetailViewModel @Inject constructor(
     var loading by mutableStateOf(true)
         private set
 
+    var releaseMessage by mutableStateOf("")
+        private set
+    fun release() { viewModelScope.launch {
+        releaseMessage = try { if (repo.releaseReservation(id)) "Reserva liberada." else "No hay reserva activa." }
+            catch (_: Exception) { "No se pudo liberar la reserva." }
+    } }
     init {
         viewModelScope.launch {
             try {
@@ -114,7 +120,18 @@ fun DetailScreen(
                     title = stringResource(R.string.detail_missing_title),
                     body = stringResource(R.string.detail_missing_body),
                 )
-                else -> LicenseDetail(item)
+                else -> {
+                    LicenseDetail(item)
+                    if (item.txNumber != null) {
+                        val confirm = androidx.compose.runtime.remember { mutableStateOf(false) }
+                        androidx.compose.material3.TextButton(onClick = { confirm.value = true }) { Text("Liberar reserva") }
+                        if (confirm.value) androidx.compose.material3.AlertDialog(onDismissRequest = { confirm.value = false },
+                            text = { Text("¿Confirmas que esta emisión no se entregó? El pago podrá volver a usarse.") },
+                            confirmButton = { androidx.compose.material3.TextButton(onClick = { confirm.value = false; vm.release() }) { Text("Liberar") } },
+                            dismissButton = { androidx.compose.material3.TextButton(onClick = { confirm.value = false }) { Text("Cancelar") } })
+                        Text(vm.releaseMessage)
+                    }
+                }
             }
         }
     }

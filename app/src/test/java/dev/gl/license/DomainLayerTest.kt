@@ -45,6 +45,12 @@ internal class MemLic : LicenciaRepository {
     private val map = LinkedHashMap<String, Licencia>()
     private val flow = MutableStateFlow<List<Licencia>>(emptyList())
     private fun pub() { flow.value = map.values.sortedByDescending { it.issuedAtIso } }
+    private val used = mutableSetOf<String>()
+    override suspend fun issue(license: Licencia, requestNonce: String, previous: String?): Outcome<Unit> {
+        if (!used.add(requestNonce)) return Outcome.Err(dev.gl.license.core.AppError.SolicitudYaProcesada)
+        previous?.let { map[it]?.let { old -> upsert(old.copy(status = dev.gl.license.domain.model.EstadoLicencia.REVOCADA)) } }
+        return upsert(license)
+    }
     override fun observeAll(): Flow<List<Licencia>> = flow
     override suspend fun upsert(license: Licencia): Outcome<Unit> {
         map[license.id] = license; pub(); return Outcome.Ok(Unit)
@@ -151,7 +157,7 @@ class DomainLayerTest {
     @Test
     fun generarRequierePagoYCalculaVencimiento() = runTest {
         val seg = MemSeg()
-        val uc = GenerarLicenciaUseCase(seg, FixedClock)
+        val uc = GenerarLicenciaUseCase(seg, FixedClock, MemLic())
         assertThat(uc(req(), false)).isInstanceOf(Outcome.Err::class.java)
         val ok = uc(req(), true, idFactory = { "fixed-id" }) as Outcome.Ok
         assertThat(ok.value.first.expiresAtIso).isEqualTo("2026-01-31T00:00:00Z")
@@ -165,7 +171,7 @@ class DomainLayerTest {
     @Test
     fun generarRechazaSolicitudV1DeSpviSinCifrar() = runTest {
         val seg = MemSeg()
-        val uc = GenerarLicenciaUseCase(seg, FixedClock)
+        val uc = GenerarLicenciaUseCase(seg, FixedClock, MemLic())
         val solicitud = req().copy(
             appName = "SPVI",
             deviceId = "SPVI:abc-12345",
@@ -185,7 +191,7 @@ class DomainLayerTest {
         val lic = MemLic()
         val reg = MemReg()
         val seg = MemSeg()
-        val gen = GenerarLicenciaUseCase(seg, FixedClock)
+        val gen = GenerarLicenciaUseCase(seg, FixedClock, MemLic())
         val issued = (gen(req(), true, idFactory = { "id-1" }) as Outcome.Ok).value.first
         val registrar = RegistrarLicenciaUseCase(lic, reg, FixedClock)
         assertThat(registrar(issued)).isInstanceOf(Outcome.Ok::class.java)

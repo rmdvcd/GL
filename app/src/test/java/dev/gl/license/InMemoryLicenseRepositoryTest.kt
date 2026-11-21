@@ -92,9 +92,18 @@ class InMemoryLicenseRepositoryTest {
         assertThat(guardada?.precioCobrado).isEqualTo(8_000)
     }
 
+    @Test fun conflictoRevierteNonceYReserva() = runTest {
+        val a = lic("a", "2026-01-01T00:00:00Z").copy(txNumber = "TX 1")
+        assertThat(repo.issue(a, "uno")).isInstanceOf(Outcome.Ok::class.java)
+        assertThat(repo.issue(a.copy(id="b", txNumber="tx1"), "dos")).isInstanceOf(Outcome.Err::class.java)
+        assertThat(repo.releaseReservation("a")).isTrue()
+        assertThat(repo.issue(a.copy(id="b"), "dos")).isInstanceOf(Outcome.Ok::class.java)
+        assertThat(repo.issue(a.copy(id="c", txNumber=null), "uno")).isInstanceOf(Outcome.Err::class.java)
+    }
+
     @Test
     fun transactionLookupIsCaseInsensitive() = runTest {
-        repo.upsert(lic("tx", "2026-01-01T00:00:00Z").copy(txNumber = "TX-ABC123"))
+        repo.issue(lic("tx", "2026-01-01T00:00:00Z").copy(txNumber = "TX-ABC123"), "nonce")
 
         assertThat(repo.isTransactionUsed("tx-abc123")).isTrue()
         assertThat(repo.isTransactionUsed("TX-other")).isFalse()

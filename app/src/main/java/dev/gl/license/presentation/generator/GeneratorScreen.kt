@@ -169,6 +169,9 @@ fun GeneratorScreen(
         StatusBanner(error = ui.error, success = ui.success)
 
         if (ui.raw.isBlank() && ui.solicitud == null && ui.spvi == null) {
+            val resendId = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
+            OutlinedTextField(value = resendId.value, onValueChange = { resendId.value = it.take(64) }, label = { Text("ID de licencia SPVI emitida") })
+            GlSecondaryButton(text = "Reenviar mensaje", enabled = resendId.value.isNotBlank(), onClick = { vm.resend(resendId.value) })
             EmptyState(
                 title = stringResource(R.string.generator_empty_title),
                 body = stringResource(R.string.generator_empty_body),

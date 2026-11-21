@@ -15,6 +15,15 @@ import javax.inject.Singleton
 class LicenseRepositoryImpl @Inject constructor(
     private val dao: LicenseDao,
 ) : LicenseRepository {
+    override suspend fun issue(license: IssuedLicense, requestNonce: String, previous: String?): Outcome<Unit> = try {
+        dao.issue(license.toEntity(), requestNonce.trim(), previous)
+        Outcome.Ok(Unit)
+    } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+      catch (e: AppError) { Outcome.Err(e) }
+      catch (_: Exception) { Outcome.Err(AppError.RegistryFailure) }
+
+    override suspend fun releaseReservation(id: String) = dao.release(id) > 0
+
     override fun observeAll(): Flow<List<IssuedLicense>> =
         dao.observeAll().map { list -> list.map { it.toDomain() } }
 
@@ -49,6 +58,6 @@ class LicenseRepositoryImpl @Inject constructor(
 
     override suspend fun isTransactionUsed(txNumber: String): Boolean {
         if (txNumber.isBlank()) return false
-        return dao.countByTxNumber(txNumber.trim()) > 0
+        return dao.countByTxNumber(txKey(txNumber)) > 0
     }
 }

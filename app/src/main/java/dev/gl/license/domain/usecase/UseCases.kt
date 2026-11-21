@@ -58,16 +58,6 @@ class GenerarLicenciaUseCase @Inject constructor(
     private val clock: SecureClock,
     private val licencias: LicenciaRepository,
 ) {
-    constructor(crypto: SeguridadRepository, clock: SecureClock) : this(
-        crypto, clock, object : LicenciaRepository {
-            override fun observeAll() = kotlinx.coroutines.flow.emptyFlow<List<Licencia>>()
-            override suspend fun upsert(license: Licencia) = Outcome.Ok(Unit)
-            override suspend fun getById(id: String): Licencia? = null
-            override suspend fun merge(incoming: List<Licencia>) = Outcome.Ok(0)
-            override suspend fun all(): List<Licencia> = emptyList()
-        }
-    )
-
     suspend operator fun invoke(
         req: SolicitudLicencia,
         paymentConfirmed: Boolean,
@@ -155,7 +145,10 @@ class GenerarLicenciaUseCase @Inject constructor(
         )
         return when (val enc = crypto.cifrarLicencia(license, devicePubPem)) {
             is Outcome.Err -> enc
-            is Outcome.Ok -> Outcome.Ok(license to enc.value)
+            is Outcome.Ok -> when (val saved = licencias.issue(license, req.nonce)) {
+                is Outcome.Err -> saved
+                is Outcome.Ok -> Outcome.Ok(license to enc.value)
+            }
         }
     }
 }

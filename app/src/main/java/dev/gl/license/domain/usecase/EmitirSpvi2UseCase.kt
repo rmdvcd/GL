@@ -35,6 +35,8 @@ class EmitirSpvi2UseCase @Inject constructor(
     private val licencias: LicenciaRepository,
     private val clock: SecureClock,
 ) {
+    suspend fun registrada(id: String): Licencia? = licencias.getById(id)
+
     suspend operator fun invoke(
         sol: SolicitudSpviV2,
         pagoConfirmado: Boolean,
@@ -109,12 +111,6 @@ class EmitirSpvi2UseCase @Inject constructor(
                 return Outcome.Err(AppError.RecuperacionInvalida)
             }
 
-            // Revoca la licencia anterior en el registro
-            when (val rev = licencias.upsert(prevRecupera.copy(status = EstadoLicencia.REVOCADA))) {
-                is Outcome.Err -> return rev
-                is Outcome.Ok -> Unit
-            }
-
             val id = idFactory()
             val lic = Licencia(
                 version = 2,
@@ -146,6 +142,8 @@ class EmitirSpvi2UseCase @Inject constructor(
                 is Outcome.Err -> c
                 is Outcome.Ok -> {
                     val conCodigo = lic.copy(codigoCorto = c.value)
+                    val saved = licencias.issue(conCodigo, sol.nonce, sol.recupera?.trim())
+                    if (saved is Outcome.Err) return saved
                     val venceSec = if (esPerpetua) null else prevVenceSec
                     val mensaje = SpviResponseMessage.build(
                         prevRecupera.type, lic.secundarias ?: 0, ahoraSec, venceSec, id, c.value,
@@ -217,6 +215,8 @@ class EmitirSpvi2UseCase @Inject constructor(
                 is Outcome.Err -> c
                 is Outcome.Ok -> {
                     val conCodigo = lic.copy(codigoCorto = c.value)
+                    val saved = licencias.issue(conCodigo, sol.nonce, sol.recupera?.trim())
+                    if (saved is Outcome.Err) return saved
                     val mensaje = SpviResponseMessage.build(
                         prevAmplia.type, sol.secundarias, ahoraSec, venceAmpliaSec, id, c.value,
                     )
@@ -272,6 +272,8 @@ class EmitirSpvi2UseCase @Inject constructor(
             is Outcome.Err -> c
             is Outcome.Ok -> {
                 val conCodigo = lic.copy(codigoCorto = c.value)
+                    val saved = licencias.issue(conCodigo, sol.nonce, sol.recupera?.trim())
+                    if (saved is Outcome.Err) return saved
                 val mensaje = SpviResponseMessage.build(
                     sol.tipo, sol.secundarias, emitidaSec, venceSec, id, c.value,
                 )
