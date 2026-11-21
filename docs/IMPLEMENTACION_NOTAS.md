@@ -81,3 +81,43 @@ El Registro guarda el código SPVI2 y permite reconstruir su mensaje sin emitir 
 Los validadores v1 y SPVIR1 ya delegaban en `RequestFreshness`. Ahora un único intervalo inclusivo alimenta la validación y el aviso de error: se aceptan desde 72 horas antes hasta 2 horas después de la hora del emisor. No es la tolerancia del Worker de canje. Una prueba JVM fija los extremos y los instantes un nanosegundo fuera del intervalo.
 
 Ampliar la antigüedad, por ejemplo a siete días, permitiría presentar más tarde una **solicitud aún no utilizada**. No reabre por sí mismo la repetición de una solicitud ya emitida: la reserva atómica consume su nonce al emitir, siempre que se conserve ese registro. Requiere decisión del propietario y actualizar «Vale 72 horas» en los clientes Shalev antes del cambio. Esta entrega **no amplía** la ventana.
+
+### G5 — cierre de la entrega del emisor (sin producción)
+
+| Tarea | Estado | Evidencia y límites |
+|---|---|---|
+| G1 | Hecho-verificado | Ambas rutas fuera de `git ls-files` y cubiertas por `git check-ignore`. `cd services/redeem && npm test`: **121/121**; incluye las dos comprobaciones nuevas de higiene. Historial sin purgar. |
+| G2 | Hecho-no-ejecutado (Android/JVM) | Mensaje para código libre, cuatro acciones, confirmación manual con nota y prueba GSM-7/longitud/formato. Omitida únicamente la exigencia GSM-7 sobre el JSON literal v1 (contrato). |
+| G3 | Hecho-no-ejecutado (Android/JVM) | Direcciones y construcción de URLs cubiertas en fuente de prueba; envío y alternativas en Generator y detalle SPVI2. Reenvío v1 desde Registro omitido: no conserva el sobre. |
+| G4 | Hecho-no-ejecutado (JVM) | Misma política para ambos validadores, prueba de límites añadida; no se ha cambiado a siete días. |
+
+`cd tools/directorio && node --test test/*.test.mjs`: **11/11**. Resultados de Node locales, no pruebas de Android ni de la infraestructura desplegada. **Kotlin: no ejecutado** (sin compilación, suites JVM, instrumentación, apertura de apps externas ni prueba en el emisor).
+
+**Archivos Kotlin tocados sin verificar por compilación** (rutas relativas a `app/src/main/java/dev/gl/license/`):
+
+- `core/AppError.kt`
+- `domain/model/DeliveryAddress.kt`
+- `domain/model/LicenseMessage.kt`
+- `domain/model/OperatorMessages.kt`
+- `domain/model/SpviResponseMessage.kt`
+- `domain/usecase/RequestFreshness.kt`
+- `presentation/components/MessageActions.kt`
+- `presentation/generator/GeneratorScreen.kt`
+- `presentation/generator/GeneratorViewModel.kt`
+- `presentation/lotes/LotesScreen.kt`
+- `presentation/lotes/LotesViewModel.kt`
+- `presentation/registry/DetailScreen.kt`
+
+Pruebas JVM tocadas, también sin ejecutar (`app/src/test/java/dev/gl/license/`):
+
+- `DeliveryAddressTest.kt`
+- `LicenseMessageTest.kt`
+- `OperatorMessagesTest.kt`
+- `RequestFreshnessTest.kt`
+
+**Decisiones pendientes del propietario:**
+
+1. Cuándo autorizar `SHALEV-ANDROID` y `SHALEV-IOS` en el Worker (independientemente de que GL ya permita elegirlos para lotes).
+2. Si ampliar la ventana de frescura y coordinar el aviso en Shalev; los límites actuales siguen siendo 72 h / 2 h.
+3. Si incorporar un campo de nº de transferencia a la **solicitud**. La nota local de entrega no introduce ese campo ni modifica SPVIR1.
+4. Si purgar los metadatos de Cloudflare del historial, coordinando clones y ramas. No se reescribió Git ni se ejecutó Wrangler.
