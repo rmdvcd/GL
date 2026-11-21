@@ -95,6 +95,7 @@ data class Licencia(
     @SerialName("emitidaEn") val issuedAtIso: String,
     @SerialName("venceEn") val expiresAtIso: String?,
     @SerialName("estado") val status: EstadoLicencia,
+    @Transient val verificacionManual: Boolean = false,
     @Transient val precioCobrado: Int? = null,
     @EncodeDefault(EncodeDefault.Mode.NEVER) @SerialName("codigoCorto") val codigoCorto: String? = null,
     @SerialName("nonce") val nonce: String,

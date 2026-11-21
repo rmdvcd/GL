@@ -17,6 +17,7 @@ sealed class AppError(val userMessage: String) : Exception(userMessage) {
     data object EmisorDesajustado : AppError("Reloj del emisor desajustado: revisa la fecha antes de emitir.")
     data object ClockFailure : AppError("No se pudo comprobar la hora actual para validar la solicitud.")
     data object AmpliacionInvalida : AppError("La ampliación requiere una licencia vigente del mismo dispositivo y tipo en el registro, con más secundarias (máx. 10).")
+    data object IdentidadNoVerificada : AppError("Comprueba teléfono y nombre fuera de banda antes de recuperar.")
     data object RecuperacionInvalida : AppError("La recuperación requiere una licencia previa válida, vigente y del mismo carné de identidad en el registro.")
     data object Generic : AppError("No se pudo completar la operación.")
 }

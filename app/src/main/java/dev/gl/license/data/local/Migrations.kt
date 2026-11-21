@@ -59,6 +59,7 @@ object GlMigrations {
 
     val MIGRATION_6_7 = object : Migration(6, 7) {
         override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE licenses ADD COLUMN verificacionManual INTEGER NOT NULL DEFAULT 0")
             db.execSQL("CREATE TABLE consumed_nonces (nonce TEXT NOT NULL PRIMARY KEY, consumedAtIso TEXT NOT NULL)")
             db.execSQL("CREATE TABLE tx_reservations (txKey TEXT NOT NULL PRIMARY KEY, licenseId TEXT NOT NULL, createdAtIso TEXT NOT NULL)")
             db.query("SELECT txNumber, id, issuedAtIso FROM licenses WHERE txNumber IS NOT NULL ORDER BY issuedAtIso, id").use { rows ->

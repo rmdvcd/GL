@@ -41,6 +41,7 @@ class EmitirSpvi2UseCase @Inject constructor(
         sol: SolicitudSpviV2,
         pagoConfirmado: Boolean,
         txNumber: String? = null,
+        verificacionManual: Boolean = false,
         idFactory: () -> String = { UUID.randomUUID().toString() },
     ): Outcome<SpviEmitida> {
         if (sol.recupera == null && !pagoConfirmado) return Outcome.Err(AppError.InvalidPayload)
@@ -97,6 +98,11 @@ class EmitirSpvi2UseCase @Inject constructor(
             if (prevRecupera.status == EstadoLicencia.REVOCADA || prevRecupera.status == EstadoLicencia.VENCIDA) {
                 return Outcome.Err(AppError.RecuperacionInvalida)
             }
+            fun nombre(s: String) = java.text.Normalizer.normalize(s.trim().lowercase(), java.text.Normalizer.Form.NFD)
+                .replace(Regex("""\p{M}+"""), "").replace(Regex("""\s+"""), " ")
+            if (!verificacionManual && (prevRecupera.phone.trim() != sol.telefono.trim() ||
+                    nombre(prevRecupera.firstName) != nombre(sol.nombre) || nombre(prevRecupera.lastName) != nombre(sol.apellidos)))
+                return Outcome.Err(AppError.IdentidadNoVerificada)
             val esPerpetua = prevRecupera.type == dev.gl.license.domain.model.TipoLicencia.PERPETUA ||
                 prevRecupera.status == EstadoLicencia.PERPETUA
             val prevVenceSec = try {
@@ -128,6 +134,7 @@ class EmitirSpvi2UseCase @Inject constructor(
                 expiresAtIso = if (esPerpetua) null else prevRecupera.expiresAtIso,
                 status = if (esPerpetua) EstadoLicencia.PERPETUA else EstadoLicencia.ACTIVA,
                 secundarias = prevRecupera.secundarias ?: sol.secundarias,
+                verificacionManual = verificacionManual,
                 precioCobrado = 0,
                 codigoCorto = null,
                 nonce = CryptoEngine.b64(CryptoEngine.randomBytes(16)),

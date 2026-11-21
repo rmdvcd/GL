@@ -28,6 +28,7 @@ fun IssuedLicense.toEntity() = LicenseEntity(
     nonce = nonce,
     version = version,
     txNumber = txNumber,
+    verificacionManual = verificacionManual,
 )
 
 /**
@@ -61,4 +62,5 @@ fun LicenseEntity.toDomain() = IssuedLicense(
     codigoCorto = codigoCorto,
     nonce = nonce,
     txNumber = txNumber,
+    verificacionManual = verificacionManual,
 )

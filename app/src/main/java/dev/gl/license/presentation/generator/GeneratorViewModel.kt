@@ -37,6 +37,7 @@ private fun usableTransaction(value: String): Boolean =
     value.isNotBlank() && value.length <= MAX_TRANSACTION_CHARS && value.none { it.isISOControl() }
 
 data class GeneratorUi(
+    val verificacionManual: Boolean = false,
     val raw: String = "",
     val solicitud: SolicitudLicencia? = null,
     val txCliente: String = "",
@@ -121,6 +122,7 @@ class GeneratorViewModel @Inject constructor(
         val raw = text.take(MAX_RAW_REQUEST_CHARS)
         _ui.update {
             it.copy(
+                verificacionManual = false,
                 raw = raw,
                 loading = false,
                 error = null,
@@ -327,6 +329,8 @@ class GeneratorViewModel @Inject constructor(
         }
     }
 
+    fun setVerificacionManual(value: Boolean) { _ui.update { it.copy(verificacionManual = value) } }
+
     fun setPaid(v: Boolean) {
         val current = _ui.value
         val isRecovery = current.spvi?.recupera != null
@@ -352,7 +356,7 @@ class GeneratorViewModel @Inject constructor(
             try {
                 val spvi = current.spvi
                 if (spvi != null) {
-                    when (val r = emitirSpvi(spvi, pagoConfirmado = isRecovery || current.paid, txNumber = tx)) {
+                    when (val r = emitirSpvi(spvi, pagoConfirmado = isRecovery || current.paid, txNumber = tx, verificacionManual = current.verificacionManual)) {
                         is Outcome.Err -> if (isCurrentGeneration(generation, current.raw, tx)) {
                             _ui.update { it.copy(error = r.error.userMessage) }
                         }

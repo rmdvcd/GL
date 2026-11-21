@@ -31,6 +31,7 @@ data class LicenseEntity(
     val nonce: String,
     val version: Int,
     val txNumber: String? = null,
+    @androidx.room.ColumnInfo(defaultValue = "0") val verificacionManual: Boolean = false,
 )
 
 @Entity(tableName = "consumed_nonces")

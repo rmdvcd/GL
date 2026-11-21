@@ -100,10 +100,12 @@ class RenovacionSpviTest {
         solicitud: SolicitudSpviV2,
         licencias: MemLic = MemLic(),
         txNumber: String? = null,
+        manual: Boolean = false,
     ) = EmitirSpvi2UseCase(puerta, licencias, FixedClock)(
         solicitud,
         pagoConfirmado = true,
         txNumber = txNumber,
+        verificacionManual = manual,
         idFactory = { "7c9e6679-7425-40de-944b-e07fc1f90ae7" },
     )
 
@@ -206,6 +208,16 @@ class RenovacionSpviTest {
         assertThat(nueva.type).isEqualTo(TipoLicencia.MENSUAL)
         assertThat(nueva.secundarias).isEqualTo(2)
         assertThat(nueva.precioCobrado).isEqualTo(0)
+    }
+
+    @Test fun identidadDiferenteRequiereConfirmacionManual() = runTest {
+        for (s in listOf(sol().copy(telefono="+5352345679"), sol().copy(nombre="Ana"))) {
+            val repo = MemLic()
+            repo.upsert(anterior("previa", venceSec = ahoraSec + 86400))
+            val r = s.copy(recupera="previa")
+            assertThat((emitir(r, repo) as Outcome.Err).error).isEqualTo(AppError.IdentidadNoVerificada)
+            assertThat((emitir(r, repo, manual=true) as Outcome.Ok).value.licencia.verificacionManual).isTrue()
+        }
     }
 
     @Test

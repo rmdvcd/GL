@@ -227,6 +227,10 @@ fun GeneratorScreen(
             ui.spvi?.let { request ->
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Spacer(Modifier.height(GlDimens.gap))
+                    if (request.recupera != null) Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = ui.verificacionManual, onCheckedChange = vm::setVerificacionManual, enabled = !ui.loading)
+                        Text("Identidad verificada fuera de banda")
+                    }
                     SpviRequestCard(
                         firstName = request.nombre,
                         lastName = request.apellidos,
