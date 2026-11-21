@@ -125,11 +125,12 @@ interface ContactMethodDao {
 }
 
 @Database(
-    entities = [LicenseEntity::class, ContactMethodEntity::class, ConsumedNonce::class, TxReservation::class],
+    entities = [LicenseEntity::class, ContactMethodEntity::class, ConsumedNonce::class, TxReservation::class, BatchCode::class, SignedBatch::class],
     version = 7,
     exportSchema = true,
 )
 abstract class GlDatabase : RoomDatabase() {
+    abstract fun batchDao(): BatchDao
     abstract fun licenseDao(): LicenseDao
     abstract fun contactMethodDao(): ContactMethodDao
 }

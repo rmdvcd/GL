@@ -58,7 +58,7 @@ class MainActivity : FragmentActivity() {
                 val back by nav.currentBackStackEntryAsState()
                 val route = back?.destination?.route
                 val showBar = route == Route.Generator || route == Route.Contact ||
-                    route == Route.Registry || route == Route.Trust
+                    route == Route.Registry || route == Route.Trust || route == Route.Lotes
                 val generatorLabel = stringResource(R.string.tab_generator)
                 val contactLabel = stringResource(R.string.tab_contact)
                 val registryLabel = stringResource(R.string.tab_registry)
@@ -101,6 +101,8 @@ class MainActivity : FragmentActivity() {
                                     alwaysShowLabel = true,
                                     modifier = Modifier.semantics { contentDescription = registryLabel },
                                 )
+                                NavigationBarItem(selected = route == Route.Lotes, onClick = { navigateToRoot(Route.Lotes) },
+                                    icon = { Icon(Icons.Default.List, contentDescription = null) }, label = { Text("Lotes") })
                                 NavigationBarItem(
                                     selected = route == Route.Trust,
                                     onClick = { navigateToRoot(Route.Trust) },
@@ -132,6 +134,7 @@ class MainActivity : FragmentActivity() {
                                 onOpenDetail = { id -> nav.navigate(Route.detail(id)) }
                             )
                         }
+                        composable(Route.Lotes) { dev.gl.license.presentation.lotes.LotesScreen() }
                         composable(Route.Trust) {
                             TrustScreen()
                         }
