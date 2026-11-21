@@ -27,6 +27,13 @@ object PublicKeyBundle {
         return PREFIX + hex.toString().chunked(4).joinToString(":")
     }
 
+    fun directoryEntry(spki: String, signing: Boolean, desde: Long): String {
+        val kid = if (signing) "gl-sign-v1" else "gl-ecdh-v1"
+        val uso = if (signing) "firma" else "ecdh"
+        val huella = fingerprint(java.util.Base64.getDecoder().decode(spki))
+        return """{"kid":"$kid","uso":"$uso","spki":"$spki","huella":"$huella","desde":$desde,"hasta":null,"estado":"vigente"}"""
+    }
+
     /** SPKI DER en Base64, tal y como espera el cliente. */
     fun toBase64(spki: ByteArray): String = CryptoEngine.b64(spki)
 
