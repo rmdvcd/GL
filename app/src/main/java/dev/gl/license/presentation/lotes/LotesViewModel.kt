@@ -48,6 +48,14 @@ class LotesViewModel @Inject constructor(db: GlDatabase, private val mint: Crear
             finally { busy = false }
         }
     }
+    suspend fun customerMessage(batchId: String, code: String): String? = withContext(Dispatchers.IO) {
+        try {
+            val batch = json.decodeFromString(RedeemBatch.serializer(), dao.payload(batchId))
+            batch.entries.singleOrNull { it.code == code }?.let(RedeemCodeMessage::build)
+        } catch (e: CancellationException) { throw e }
+        catch (_: Exception) { null }
+    }
+
     suspend fun export(id: String, write: (String)->Unit) {
         message = try { withContext(Dispatchers.IO) { write(dao.payload(id)) }; "Lote exportado." }
             catch (e: CancellationException) { throw e } catch (_: Exception) { "No se pudo guardar el lote." }

@@ -63,3 +63,9 @@ Se compararon en SQLite columnas, afinidad, nulabilidad, defaults y PK de las se
 ### G1 — configuración local de Cloudflare
 
 `git ls-files` confirmó que se habían publicado la configuración de producción y la caché de cuenta. Se retiraron **del índice** (no del disco); usa `services/redeem/examples/wrangler.production.example.jsonc` como plantilla. Los IDs de cuenta/D1 y los metadatos de la cuenta siguen en el historial. Una purga con `git filter-repo` requiere decisión y coordinación del propietario; no se hizo. La prueba de higiene revisa el índice, no la configuración local ignorada.
+
+### G2 — mensajes: excepción de contrato
+
+Lotes ya copiaba el código y anotaba entregas, pero no construía un mensaje para el cliente. La acción nueva obtiene tipo y código de la **entrada guardada**, no del selector de creación; abrir una app externa no prueba la entrega. La nota y el cambio LIBRE → ENTREGADO siguen siendo explícitos.
+
+`SpviResponseMessage` y el mensaje de canje se comprueban completos en la prueba JVM. El legado `CryptoGatewayImpl.cifrarLicencia` devuelve un sobre **JSON literal**, con `{}` incompatibles con la lista permitida. Se aplica GSM-7 al texto de acompañamiento v1, no al sobre; recodificarlo rompería el contrato. Solo el mensaje de **canje** cabe en una parte; SPVI2 puede requerir varias.

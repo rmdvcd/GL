@@ -14,10 +14,11 @@ object LicenseMessage {
         val detalle = if (secundarias == null) {
             "$importe CUP"
         } else {
-            "$secundarias secundarias · $importe CUP"
+            "$secundarias secundarias - $importe CUP"
         }
-        val primera = "Licencia $appName $tipo · $detalle"
-        val lineaCodigo = if (!codigoLicencia.isNullOrBlank()) "Código: $codigoLicencia\n" else ""
+        val nombre = appName.takeIf { it.isOperatorGsm7() } ?: "GL"
+        val primera = "Licencia $nombre $tipo - $detalle"
+        val lineaCodigo = if (!codigoLicencia.isNullOrBlank()) "Codigo: $codigoLicencia\n" else ""
         return "$primera\n${lineaCodigo}ID: $licenseId\n$envelope"
     }
 }
