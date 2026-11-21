@@ -47,7 +47,7 @@ function requireInstantInWindow(value, nowMs, skewMs) {
   requireString(value, "instant", 40);
   const parsed = Date.parse(value);
   if (!Number.isFinite(parsed) || !value.endsWith("Z")) throw new ApiError("INVALID_REQUEST");
-  if (Math.abs(nowMs - parsed) > skewMs) throw new ApiError("INVALID_REQUEST");
+  if (Math.abs(nowMs - parsed) > skewMs) throw new ApiError("CLOCK_SKEW", {detail:new Date(nowMs).toISOString()});
   return parsed;
 }
 

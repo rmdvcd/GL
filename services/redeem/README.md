@@ -183,7 +183,8 @@ offline sigue valiendo hasta su vencimiento.
 
 | `code` | HTTP | Cuándo |
 |---|---|---|
-| `INVALID_REQUEST` | 400 | JSON, campos, reloj fuera de ±5 min |
+| `INVALID_REQUEST` | 400 | JSON, campos inválidos |
+| `CLOCK_SKEW` | 400 | Reloj fuera de ±5 min; `error.serverTime` indica la hora UTC. `GET /v1/time` permite consultarla sin autenticación (limitado por IP, no-store). |
 | `PAYLOAD_TOO_LARGE` | 413 | Cuerpo de más de 16 KiB |
 | `INVALID_PROOF` | 401 | Firma del dispositivo ausente o inválida |
 | `CODE_UNAVAILABLE` | 404 | Código inexistente, revocado, de otra app o sin transferencia autorizada |

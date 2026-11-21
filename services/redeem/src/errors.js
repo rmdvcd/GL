@@ -1,6 +1,7 @@
 /** Errores publicos del servicio. Mensajes genericos, sin datos del cliente. */
 
 export const ERROR_CODES = Object.freeze({
+  CLOCK_SKEW: { status: 400, message: "Ajusta el reloj del dispositivo." },
   INVALID_REQUEST: { status: 400, message: "La solicitud no es valida." },
   PAYLOAD_TOO_LARGE: { status: 413, message: "La solicitud es demasiado grande." },
   INVALID_PROOF: { status: 401, message: "No se pudo verificar la identidad del dispositivo." },
