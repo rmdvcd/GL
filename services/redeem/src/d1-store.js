@@ -172,12 +172,14 @@ export class D1Store extends MemoryStore {
     return { ...pending, toThumbprint };
   }
 
-  async claim(row) {
+  async claim(row, days) {
     try {
       await this.db.batch([
         this.db
           .prepare(
-            `INSERT INTO redemptions (${COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO redemptions (${COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ${days ? `strftime('%Y-%m-%dT%H:%M:%fZ',
+              max(julianday(?), coalesce((SELECT max(julianday(expires_at)) FROM redemptions
+                WHERE active=1 AND app_id=? AND device_thumbprint=?), 0)) + ?)` : '?'}, ?, ?, ?, ?, ?)`,
           )
           .bind(
             row.licenseId,
@@ -189,7 +191,7 @@ export class D1Store extends MemoryStore {
             row.secundarias,
             row.status,
             row.issuedAt,
-            row.expiresAt,
+            ...(days ? [row.issuedAt, row.appId, row.deviceThumbprint, days] : [row.expiresAt]),
             row.deviceThumbprint,
             row.devicePublicKey,
             row.active ? 1 : 0,
@@ -198,7 +200,7 @@ export class D1Store extends MemoryStore {
           ),
         this.db.prepare("DELETE FROM transfers WHERE code_hash = ?").bind(row.codeHash),
       ]);
-      return { ok: true, row };
+      return { ok: true, row: await this.getByRequest(row.requestId) };
     } catch {
       const byRequest = await this.getByRequest(row.requestId);
       if (byRequest) return { ok: false, reason: "request-exists", existing: byRequest };

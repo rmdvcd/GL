@@ -271,19 +271,6 @@ export class RedeemService {
         }
         expiresAt = new Date(remaining).toISOString();
       }
-    } else if (code.type !== "PERPETUA") {
-      const days = LICENSE_TYPES[code.type];
-      if (!Number.isInteger(days) || days <= 0) throw new ApiError("SERVER_ERROR");
-      // Rollover: un codigo nuevo no hace perder los dias que le quedan a la
-      // licencia activa de esta misma instalacion y app. Un reintento no pasa
-      // por aqui (el canje ya existe), asi que no se duplica el periodo.
-      let baseMs = nowMs;
-      const current = await this.store.getActiveByDevice(code.appId, thumbprint);
-      if (current?.expiresAt) {
-        const currentExpiry = Date.parse(current.expiresAt);
-        if (Number.isFinite(currentExpiry) && currentExpiry > nowMs) baseMs = currentExpiry;
-      }
-      expiresAt = new Date(baseMs + days * 24 * 60 * 60 * 1000).toISOString();
     }
 
     const row = {
@@ -304,7 +291,7 @@ export class RedeemService {
       createdAt: issuedAt,
     };
 
-    const claim = await this.store.claim(row);
+    const claim = await this.store.claim(row, transferredFrom ? null : LICENSE_TYPES[code.type]);
     if (!claim.ok) {
       if (claim.reason === "request-exists") {
         if (

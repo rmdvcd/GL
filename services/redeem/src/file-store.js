@@ -98,9 +98,9 @@ export class JsonFileStore extends MemoryStore {
     return pending;
   }
 
-  async claim(row) {
+  async claim(row, days) {
     await this.load();
-    const result = await super.claim(row);
+    const result = await super.claim(row, days);
     if (result.ok) await this.persist();
     return result;
   }

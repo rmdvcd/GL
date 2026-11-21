@@ -106,11 +106,20 @@ export class MemoryStore {
     return pending;
   }
 
-  async claim(row) {
-    const requestRow = await this.getByRequest(row.requestId);
+  async claim(row, days) {
+    const requestRow = this.redemptions.get(this.byRequest.get(row.requestId));
     if (requestRow) return { ok: false, reason: "request-exists", existing: requestRow };
-    const active = await this.getActiveByCode(row.codeHash);
+    const active = this.redemptions.get(this.byCodeActive.get(row.codeHash));
     if (active) return { ok: false, reason: "code-active", existing: active };
+    if (days) {
+      let base = Date.parse(row.issuedAt);
+      for (const prior of this.redemptions.values()) {
+        if (prior.active && prior.appId === row.appId && prior.deviceThumbprint === row.deviceThumbprint && prior.expiresAt) {
+          base = Math.max(base, Date.parse(prior.expiresAt));
+        }
+      }
+      row.expiresAt = new Date(base + days * 86400000).toISOString();
+    }
     this.redemptions.set(row.licenseId, row);
     this.byRequest.set(row.requestId, row.licenseId);
     this.byCodeActive.set(row.codeHash, row.licenseId);
