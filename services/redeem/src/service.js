@@ -293,6 +293,7 @@ export class RedeemService {
 
     const claim = await this.store.claim(row, transferredFrom ? null : LICENSE_TYPES[code.type]);
     if (!claim.ok) {
+      if (claim.reason === "unavailable") throw new ApiError("CODE_UNAVAILABLE");
       if (claim.reason === "request-exists") {
         if (
           claim.existing.deviceThumbprint !== thumbprint ||

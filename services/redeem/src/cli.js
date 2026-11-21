@@ -182,17 +182,17 @@ async function commandSqlImport(values) {
     glPublicKey: await resolveGlPublicKey(values),
     maxSecundarias: maxSecundariasOption(values),
   });
-  const lines = ["BEGIN;"];
+  const lines = [];
   for (const entry of verified.entries) {
     const codeHash = await hashCode(entry.code, pepper);
     lines.push(
-      `INSERT INTO codes (code_hash, app_id, type, secundarias, batch_id, redeem_before, state, created_at) VALUES (` +
+      `INSERT OR IGNORE INTO codes (code_hash, app_id, type, secundarias, batch_id, redeem_before, state, created_at) VALUES (` +
         `${sqlQuoted(codeHash)}, ${sqlQuoted(verified.appId)}, ${sqlQuoted(entry.type)}, ` +
         `${entry.secundarias}, ${sqlQuoted(verified.batchId)}, ${sqlQuoted(entry.redeemBefore)}, ` +
         `'UNUSED', ${sqlQuoted(verified.createdAt)});`,
     );
   }
-  lines.push("COMMIT;", "");
+  lines.push("");
   await writeOut(values.out, lines.join("\n"), 0o600);
   if (values.out) {
     console.log(`SQL generado para ${verified.entries.length} codigos.`);
@@ -245,10 +245,9 @@ async function commandSqlStatus(values, mode) {
   }
   const license = sqlQuoted(values.license);
   const sql =
-    `BEGIN;\n` +
     (mode === "revoke"
       ? `UPDATE redemptions SET status = 'REVOCADA', active = 0 ` +
-        `WHERE (license_id = ${license} OR ${absorbedBy(license)}) AND active = 1;\n` +
+        `WHERE (code_hash = (SELECT code_hash FROM redemptions WHERE license_id=${license}) OR ${absorbedBy(license)}) AND active = 1;\n` +
         `UPDATE codes SET state = 'REVOKED' WHERE code_hash = ` +
         `(SELECT code_hash FROM redemptions WHERE license_id = ${license});\n` +
         `DELETE FROM transfers WHERE code_hash = ` +
@@ -265,10 +264,9 @@ async function commandSqlStatus(values, mode) {
         `    to_thumbprint = excluded.to_thumbprint\n` +
         `  WHERE transfers.from_license_id = excluded.from_license_id;\n` +
         `UPDATE redemptions SET status = 'REVOCADA', active = 0 ` +
-        `WHERE (license_id = ${license} OR ${absorbedBy(license)}) AND active = 1;\n` +
-        `-- solo la instalacion indicada puede canjear; hereda el vencimiento restante\n`) +
-    `COMMIT;\n`;
-  await writeOut(values.out, sql, 0o600);
+        `WHERE EXISTS (SELECT 1 FROM transfers WHERE from_license_id=${license}) AND (license_id = ${license} OR ${absorbedBy(license)}) AND active = 1;\n` +
+        `-- solo la instalacion indicada puede canjear; hereda el vencimiento restante\n`);
+  await writeOut(values.out, sql.split(";\n").map(s => s.trim().replace(/\s+/g, " ")).join(";\n"), 0o600);
   if (values.out) console.log(`SQL de ${mode === "revoke" ? "revocacion" : "transferencia"} generado.`);
 }
 

@@ -370,3 +370,4 @@ El prompt para la implementación Python está en `docs/PROMPT_DSHALEV.md`.
 Tras transferir un rollover, restaura con el código más reciente: los períodos anteriores quedan absorbidos y revocados en la instalación de origen.
 
 Configura `ALLOWED_APPS` como lista separada por comas (propuestos: `DSHALEV`, `SHALEV-ANDROID`, `SHALEV-IOS`; confirmar antes del despliegue). Copia `examples/wrangler.jsonc` a `wrangler.jsonc` antes de ejecutar Wrangler. Los bindings `RL_IP` y `RL_DEVICE` son obligatorios y deniegan si fallan. No escriben contadores D1. El adaptador para pruebas con contadores limpia ventanas de más de un día de forma probabilística. Guía ampliada pendiente de entrega: `docs/GUIA_CLOUDFLARE_WORKERS_D1.md`.
+El SQL de importación es reintentable (INSERT OR IGNORE); no añadas BEGIN/COMMIT al archivo para D1.

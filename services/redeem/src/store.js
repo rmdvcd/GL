@@ -111,6 +111,11 @@ export class MemoryStore {
     if (requestRow) return { ok: false, reason: "request-exists", existing: requestRow };
     const active = this.redemptions.get(this.byCodeActive.get(row.codeHash));
     if (active) return { ok: false, reason: "code-active", existing: active };
+    const pending = this.pendingTransfers.get(row.codeHash);
+    if (this.codes.get(row.codeHash)?.state !== "UNUSED" ||
+        (row.transferredFrom ? pending?.fromLicenseId !== row.transferredFrom || pending?.toThumbprint !== row.deviceThumbprint : this.latestByCode.has(row.codeHash))) {
+      return {ok:false, reason:"unavailable"};
+    }
     if (days) {
       let base = Date.parse(row.issuedAt);
       for (const prior of this.redemptions.values()) {
