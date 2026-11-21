@@ -26,6 +26,7 @@ class RegistryViewModel @Inject constructor(
     private val repo: LicenciaRepository,
     private val importUc: ImportarRegistroUseCase,
     private val exportUc: ExportarRegistroUseCase,
+    private val revocadas: dev.gl.license.domain.usecase.GenerarListaRevocadasUseCase,
 ) : ViewModel() {
 
     private val _ui = MutableStateFlow(RegistryUi())
@@ -73,6 +74,14 @@ class RegistryViewModel @Inject constructor(
                 null
             }
         }
+    }
+
+    suspend fun exportRevocations(write: (ByteArray) -> Unit) {
+        try {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { write(revocadas()) }
+            _ui.update { it.copy(message = "Lista de revocadas guardada.", error = null) }
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+        catch (_: Exception) { _ui.update { it.copy(error = "No se pudo generar o guardar revocadas.json (máximo 512 KiB).", message = null) } }
     }
 
     fun markExportWritten() {

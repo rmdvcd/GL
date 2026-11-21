@@ -73,6 +73,7 @@ class RegistryViewModelTest {
             lic,
             ImportarRegistroUseCase(seg, MemLic(), MemReg(), FixedClock),
             ExportarRegistroUseCase(seg, lic),
+            dev.gl.license.domain.usecase.GenerarListaRevocadasUseCase(lic, FixedClock),
         )
         val bytes = vm.exportBytes()
         assertThat(bytes).isNotNull()
