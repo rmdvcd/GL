@@ -58,6 +58,18 @@ class RenovacionSpviTest {
         renueva = renueva,
     )
 
+    @Test fun monotonaConLimiteDeUnDia() = runTest {
+        for (adelanto in listOf(3600L, 3 * 86400L)) {
+            val repo = MemLic()
+            repo.upsert(anterior("previa", venceSec = ahoraSec + 40 * 86400L).copy(
+                issuedAtIso = Instant.ofEpochSecond(ahoraSec + adelanto).toString()))
+            val result = emitir(sol(), repo)
+            if (adelanto > 86400) assertThat((result as Outcome.Err).error).isEqualTo(AppError.EmisorDesajustado)
+            else assertThat((result as Outcome.Ok).value.licencia.issuedAtIso)
+                .isEqualTo(Instant.ofEpochSecond(ahoraSec + adelanto + 1).toString())
+        }
+    }
+
     private fun anterior(
         id: String,
         deviceId: String = this.deviceId,

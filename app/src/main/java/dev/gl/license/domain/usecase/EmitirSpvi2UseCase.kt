@@ -73,7 +73,13 @@ class EmitirSpvi2UseCase @Inject constructor(
             }
             if (used) return Outcome.Err(AppError.TransactionAlreadyUsed(cleanTx))
         }
-        val ahoraSec = ahora.epochSecond
+        val ahoraSec = try {
+            val ultima = licencias.all().asSequence().filter { it.appName == "SPVI" && it.deviceId == sol.deviceId }
+                .maxOfOrNull { Instant.parse(it.issuedAtIso).epochSecond }
+            maxOf(ahora.epochSecond, (ultima ?: (ahora.epochSecond - 1)) + 1)
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+        catch (_: Exception) { return Outcome.Err(AppError.RegistryFailure) }
+        if (ahoraSec - ahora.epochSecond > 86_400) return Outcome.Err(AppError.EmisorDesajustado)
 
         // 1. Recuperación de licencia
         if (sol.recupera != null) {
