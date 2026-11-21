@@ -12,7 +12,7 @@ Resultado final, Node 22.22.3: `services/redeem`: 119/119; `tools/directorio`: 1
 
 ## Qué NO se verificó
 
-Android sin JDK 17, Gradle ni SDK: no se afirma compilación, pruebas JVM, SQLCipher/Keystore, borrado del portapapeles ni recorrido en dispositivo. `ContactClipboard` no contenía temporizador; la nueva UI intenta borrar solo su propio clip. No se ejecutaron Wrangler/D1 reales, pruebas de carga, publicación en releases, cliente Shalev ni validación cruzada móvil. La guía independiente de Cloudflare no se adjuntó. Archivos Kotlin tocados, todos **no verificados**:
+Android sin JDK 17, Gradle ni SDK: no se afirma compilación, pruebas JVM, SQLCipher/Keystore, borrado del portapapeles ni recorrido en dispositivo. `ContactClipboard` no contenía temporizador; la nueva UI intenta borrar solo su propio clip. No se ejecutaron Wrangler/D1 reales, pruebas de carga, publicación en releases, cliente Shalev ni validación cruzada móvil. La [guía de despliegue](GUIA_CLOUDFLARE_WORKERS_D1.md) se incorporó después; no implica que el servicio esté desplegado. Archivos Kotlin tocados, todos **no verificados**:
 - `app/src/main/java/dev/gl/license/core/AppError.kt`
 - `app/src/main/java/dev/gl/license/data/local/BatchInventory.kt`
 - `app/src/main/java/dev/gl/license/data/local/Db.kt`

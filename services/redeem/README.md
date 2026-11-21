@@ -218,7 +218,7 @@ Tras transferir un rollover, restaura con el código más reciente: los período
 
 ## Despliegue (Cloudflare Workers + D1)
 
-Configura `ALLOWED_APPS` como lista separada por comas (propuestos: `DSHALEV`, `SHALEV-ANDROID`, `SHALEV-IOS`; confirmar antes del despliegue). Copia `examples/wrangler.jsonc` a `wrangler.jsonc` antes de ejecutar Wrangler. Los bindings `RL_IP` y `RL_DEVICE` son obligatorios y deniegan si fallan. No escriben contadores D1. El adaptador para pruebas con contadores limpia ventanas de más de un día de forma probabilística. Guía ampliada pendiente de entrega: `docs/GUIA_CLOUDFLARE_WORKERS_D1.md`.
+Configura `ALLOWED_APPS` como lista separada por comas (propuestos: `DSHALEV`, `SHALEV-ANDROID`, `SHALEV-IOS`; confirmar antes del despliegue). Copia `examples/wrangler.jsonc` a `wrangler.jsonc` antes de ejecutar Wrangler. Los bindings `RL_IP` y `RL_DEVICE` son obligatorios y deniegan si fallan. No escriben contadores D1. El adaptador para pruebas con contadores limpia ventanas de más de un día de forma probabilística. Consulta la [guía de despliegue en Cloudflare Workers + D1](../../docs/GUIA_CLOUDFLARE_WORKERS_D1.md) para preparar staging, probar el canje y pasar a producción.
 El SQL de importación es reintentable (INSERT OR IGNORE); no añadas BEGIN/COMMIT al archivo para D1.
 
 1. Crear D1, copiar el `database_id` al archivo de configuración local y aplicar el esquema:
