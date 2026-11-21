@@ -28,7 +28,30 @@ fun LotesScreen(vm: LotesViewModel = hiltViewModel()) {
         if (uri != null) scope.launch { vm.export(exportId) { json -> requireNotNull(ctx.contentResolver.openOutputStream(uri,"wt")).bufferedWriter().use { it.write(json) } } }
     }
     val batches by vm.batches.collectAsStateWithLifecycle(initialValue = emptyList())
-    val inventory by remember(vm.selected) { vm.codes(vm.selected) }.collectAsStateWithLifecycle(initialValue = emptyList())
+    // Cambiar de lote descarta el inventario anterior antes de recibir filas de Room.
+    val inventory = key(vm.selected) {
+        remember(vm.selected) { vm.codes(vm.selected) }.collectAsStateWithLifecycle(initialValue = emptyList()).value
+    }
+    var filtro by remember(vm.selected) { mutableStateOf("Todos") }
+    var busqueda by remember(vm.selected) { mutableStateOf("") }
+    val visibles = remember(inventory, filtro, busqueda) {
+        val texto = busqueda.trim()
+        inventory.filter { fila ->
+            (filtro == "Todos" || fila.estado == filtro) &&
+                (texto.isEmpty() || fila.nota.contains(texto, ignoreCase = true) ||
+                    fila.code.takeLast(4).endsWith(texto, ignoreCase = true))
+        }
+    }
+    var confirmarCopia by remember(vm.selected) { mutableStateOf<String?>(null) }
+    inventory.firstOrNull { it.codeHash == confirmarCopia && it.estado == "ENTREGADO" }?.let { fila ->
+        AlertDialog(
+            onDismissRequest = { confirmarCopia = null },
+            title = { Text("¿Volver a copiar un código entregado?") },
+            text = { Text("Código terminado en ${fila.code.takeLast(4)}. Entrega registrada: ${fila.nota}. Comprueba el destinatario antes de reenviarlo.") },
+            confirmButton = { TextButton(onClick = { copyCode(ctx, fila.code); confirmarCopia = null }) { Text("Volver a copiar") } },
+            dismissButton = { TextButton(onClick = { confirmarCopia = null }) { Text("Cancelar") } },
+        )
+    }
     DisposableEffect(Unit) { onDispose { vm.select(vm.selected) } }
     LazyColumn(modifier=Modifier.fillMaxSize().padding(16.dp), verticalArrangement=Arrangement.spacedBy(6.dp)) {
         item {
@@ -45,15 +68,43 @@ fun LotesScreen(vm: LotesViewModel = hiltViewModel()) {
             item { Text("Códigos recién creados"); TextButton(onClick={vm.select(vm.selected)}){Text("Ocultar lista") } }
             items(vm.preview){Text(it)}
         }
-        item { Text("Inventario guardado"); Choice("Lote",vm.selected,batches.map { it.batchId }, vm::select) }
+        item {
+            Text("Inventario guardado")
+            var abierto by remember { mutableStateOf(false) }
+            val actual = batches.firstOrNull { it.batchId == vm.selected }
+            Box {
+                TextButton(onClick = { abierto = true }, enabled = batches.isNotEmpty()) {
+                    Text(actual?.let { "${it.appId} · ${it.createdAt}\n${it.batchId}" } ?: "Seleccionar lote")
+                }
+                DropdownMenu(expanded = abierto, onDismissRequest = { abierto = false }) {
+                    batches.forEach { lote ->
+                        DropdownMenuItem(
+                            text = { Text("${lote.appId} · ${lote.createdAt}\n${lote.batchId}") },
+                            onClick = { abierto = false; vm.select(lote.batchId) },
+                        )
+                    }
+                }
+            }
+        }
         if(vm.selected.isNotEmpty()) item {
             Button(onClick={exportId=vm.selected;export.launch("lote-${vm.selected}.json")}){Text("Exportar lote firmado")}
             Text("Al copiar se intentará borrar el código del portapapeles a los 60 s. Si la app está cerrada o en segundo plano, bórralo manualmente.")
         }
-        items(inventory,key={it.codeHash}) { row ->
+        if (vm.selected.isNotEmpty()) item {
+            val libres = inventory.count { it.estado == "LIBRE" }
+            val entregados = inventory.count { it.estado == "ENTREGADO" }
+            Text("Libres: $libres · Entregados: $entregados · Total: ${inventory.size}")
+            Choice("Estado", filtro, listOf("Todos", "LIBRE", "ENTREGADO")) { filtro = it }
+            OutlinedTextField(value = busqueda, onValueChange = { busqueda = it.take(160) },
+                singleLine = true, label = { Text("Nota, transacción o últimos 4 caracteres") })
+            if (visibles.isEmpty() && inventory.isNotEmpty()) Text("Ningún código coincide con estos filtros.")
+        }
+        items(visibles,key={it.codeHash}) { row ->
             var note by remember(row.codeHash){ mutableStateOf("") }
             Text("•••• ${row.code.takeLast(4)} · ${row.estado}")
-            TextButton(onClick={copyCode(ctx,row.code)}){Text("Copiar código")}
+            TextButton(onClick = {
+                if (row.estado == "LIBRE") copyCode(ctx, row.code) else confirmarCopia = row.codeHash
+            }) { Text(if (row.estado == "LIBRE") "Copiar código" else "Volver a copiar código") }
             if(row.estado=="LIBRE") {
                 OutlinedTextField(note,{note=it.take(160)},label={Text("Nombre o nº de transacción")})
                 TextButton(onClick={vm.deliver(row.codeHash,note)},enabled=note.isNotBlank()){Text("Marcar entregado")}
