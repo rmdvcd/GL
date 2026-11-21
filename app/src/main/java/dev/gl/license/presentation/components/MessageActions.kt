@@ -5,6 +5,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import dev.gl.license.domain.model.DeliveryAddress
 import android.net.Uri
 import android.os.*
 import androidx.compose.foundation.layout.Column
@@ -15,8 +16,14 @@ import androidx.compose.ui.platform.LocalContext
 
 internal const val clipboardNotice = "Al copiar se intentará borrar el portapapeles a los 60 s. Si la app está cerrada o en segundo plano, bórralo manualmente."
 
+internal fun directIntent(phone: String, body: String, sms: Boolean): Intent? {
+    return if (sms) DeliveryAddress.sms(phone)?.let {
+        Intent(Intent.ACTION_SENDTO, Uri.parse(it)).putExtra("sms_body", body)
+    } else DeliveryAddress.whatsapp(phone, body)?.let { Intent(Intent.ACTION_VIEW, Uri.parse(it)) }
+}
+
 @Composable
-internal fun MessageActions(body: String) {
+internal fun MessageActions(body: String, phone: String? = null) {
     val context = LocalContext.current
     var unavailable by remember(body) { mutableStateOf(false) }
     fun open(intent: Intent) {
@@ -29,8 +36,13 @@ internal fun MessageActions(body: String) {
         Text(clipboardNotice)
         TextButton(onClick = { copySensitiveText(context, body) }) { Text("Copiar") }
         TextButton(onClick = { open(Intent.createChooser(sendText(), "Compartir mensaje")) }) { Text("Compartir") }
-        TextButton(onClick = { open(sendText().setPackage("com.whatsapp")) }) { Text("WhatsApp") }
-        TextButton(onClick = { open(Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:")).putExtra("sms_body", body)) }) { Text("SMS") }
+        if (phone == null) { // Lote sin destinatario: el operador lo elige en la aplicación externa.
+            TextButton(onClick = { open(sendText().setPackage("com.whatsapp")) }) { Text("WhatsApp") }
+            TextButton(onClick = { open(Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:")).putExtra("sms_body", body)) }) { Text("SMS") }
+        } else if (DeliveryAddress.normalize(phone) != null) {
+            TextButton(onClick = { directIntent(phone, body, sms = false)?.let(::open) }) { Text("WhatsApp al solicitante") }
+            TextButton(onClick = { directIntent(phone, body, sms = true)?.let(::open) }) { Text("SMS al solicitante") }
+        } else Text("Número no reconocido para entrega directa. Usa Copiar o Compartir.")
         if (unavailable) Text("No se pudo abrir la aplicación. Puedes copiar o compartir el mensaje.")
     }
 }

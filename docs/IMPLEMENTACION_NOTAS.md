@@ -69,3 +69,9 @@ Se compararon en SQLite columnas, afinidad, nulabilidad, defaults y PK de las se
 Lotes ya copiaba el código y anotaba entregas, pero no construía un mensaje para el cliente. La acción nueva obtiene tipo y código de la **entrada guardada**, no del selector de creación; abrir una app externa no prueba la entrega. La nota y el cambio LIBRE → ENTREGADO siguen siendo explícitos.
 
 `SpviResponseMessage` y el mensaje de canje se comprueban completos en la prueba JVM. El legado `CryptoGatewayImpl.cifrarLicencia` devuelve un sobre **JSON literal**, con `{}` incompatibles con la lista permitida. Se aplica GSM-7 al texto de acompañamiento v1, no al sobre; recodificarlo rompería el contrato. Solo el mensaje de **canje** cabe en una parte; SPVI2 puede requerir varias.
+
+### G3 — entrega directa sin permisos nuevos
+
+Generator ya abría el canal de la solicitud. Ahora usa el mismo normalizador que el detalle: móvil local `5xxxxxxx` → `+535xxxxxxx`, conserva el móvil cubano internacional y los internacionales explícitos no cubanos. Si el número es ambiguo o no hay manejador, el cuerpo queda disponible para copiar o compartir. La entrega abre un borrador; GL no envía en segundo plano.
+
+El Registro guarda el código SPVI2 y permite reconstruir su mensaje sin emitir otra licencia. Para v1 solo guarda los datos de licencia y un código de referencia: no guarda el sobre cifrado de entrega. Se ofrece el envío v1 completo en Generator, **no** un falso reenvío desde el detalle ni un sobre regenerado.
