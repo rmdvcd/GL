@@ -247,12 +247,14 @@ export class D1Store extends MemoryStore {
     return { ...row, active: false, status: "REVOCADA" };
   }
 
-  async revokeCode(codeHash) {
-    await this.db.batch([
+  async revokeCodeCascade(codeHash) {
+    const [affected] = await this.db.batch([
+      this.db.prepare("SELECT license_id FROM redemptions WHERE active = 1 AND code_hash = ?").bind(codeHash),
+      this.db.prepare("UPDATE redemptions SET status = 'REVOCADA', active = 0 WHERE active = 1 AND code_hash = ?").bind(codeHash),
       this.db.prepare("UPDATE codes SET state = 'REVOKED' WHERE code_hash = ?").bind(codeHash),
       this.db.prepare("DELETE FROM transfers WHERE code_hash = ?").bind(codeHash),
     ]);
-    return this.getCode(codeHash);
+    return affected.results.map(row => row.license_id);
   }
 
   async incrementCounter(key, windowStart) {

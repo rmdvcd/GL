@@ -371,10 +371,9 @@ export class RedeemService {
     }
     const row = await this.store.getByLicenseId(licenseId);
     if (!row) throw new ApiError("LICENSE_NOT_FOUND");
-    await this.store.setStatus(licenseId, "REVOCADA");
-    await this.store.revokeCode(row.codeHash);
+    const affected = await this.store.revokeCodeCascade(row.codeHash);
     this.log("license_revoked", { appId: row.appId });
-    return { licenseId, status: "REVOCADA" };
+    return { licenseId, status: "REVOCADA", affected };
   }
 
   /**
@@ -417,9 +416,9 @@ export class RedeemService {
       throw new ApiError("INVALID_REQUEST");
     }
     const codeHash = await hashCode(normalized, this.pepper);
-    await this.store.revokeCode(codeHash);
+    const affected = await this.store.revokeCodeCascade(codeHash);
     this.log("code_revoked", {});
-    return { code: formatCode(normalized), status: "REVOKED" };
+    return { affected, status: "REVOKED" };
   }
 
   /** Utilidad de operador para pruebas manuales: no forma parte del protocolo. */

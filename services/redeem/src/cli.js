@@ -12,7 +12,7 @@ import { parseArgs } from "node:util";
 import { fromBase64 } from "./canonical.js";
 import { createSignedBatch, verifyBatch } from "./batch.js";
 import { JsonFileStore } from "./file-store.js";
-import { formatCode, generateNormalizedCode, hashCode } from "./code.js";
+import { formatCode, generateNormalizedCode, hashCode, normalizeCode } from "./code.js";
 import {
   exportPkcs8B64,
   exportSpkiB64,
@@ -44,7 +44,7 @@ Comandos:
                 [--max-secundarias 0]
       Importa el lote en un almacen JSON para desarrollo. No usar en produccion.
 
-  sql-revoke --license <licenseId> [--out <sql>]
+  sql-revoke (--code <codigo> | --license <licenseId>) [--out <sql>]
   sql-transfer --license <licenseId> --to-thumbprint <thumb> [--out <sql>]
 
 Variables:
@@ -229,6 +229,14 @@ async function commandImportLocal(values) {
 }
 
 async function commandSqlStatus(values, mode) {
+  if (values.code) {
+    if (mode !== "revoke" || values.license) fail("Indica solo --code o --license");
+    const pepper = fromBase64(process.env.CODE_PEPPER ?? "");
+    if (pepper.length < 32) fail("CODE_PEPPER inválido");
+    const hash = sqlQuoted(await hashCode(normalizeCode(values.code), pepper));
+    await writeOut(values.out, `UPDATE codes SET state='REVOKED' WHERE code_hash=${hash};\nUPDATE redemptions SET active=0,status='REVOCADA' WHERE code_hash=${hash} AND active=1;\nDELETE FROM transfers WHERE code_hash=${hash};\n`, 0o600);
+    return;
+  }
   if (!values.license) fail("--license es obligatorio");
   if (!/^[A-Za-z0-9._:-]{8,64}$/.test(values.license)) fail("licenseId invalido");
   if (mode === "transfer" && !/^[A-Za-z0-9_-]{43}$/.test(values["to-thumbprint"] ?? "")) {
@@ -279,6 +287,7 @@ async function main() {
       "batch-id": { type: "string" },
       batch: { type: "string" },
       "public-key": { type: "string" },
+      code: { type: "string" },
       license: { type: "string" },
       store: { type: "string" },
       "to-thumbprint": { type: "string" },

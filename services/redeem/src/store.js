@@ -158,12 +158,17 @@ export class MemoryStore {
     return row;
   }
 
-  async revokeCode(codeHash) {
+  async revokeCodeCascade(codeHash) {
     const code = this.codes.get(codeHash);
-    if (!code) return null;
+    if (!code) return [];
+    const id = this.byCodeActive.get(codeHash);
+    if (id) {
+      Object.assign(this.redemptions.get(id), {active:false, status:"REVOCADA"});
+      this.byCodeActive.delete(codeHash);
+    }
     code.state = "REVOKED";
     this.pendingTransfers.delete(codeHash);
-    return code;
+    return id ? [id] : [];
   }
 
   async incrementCounter(key, windowStart) {

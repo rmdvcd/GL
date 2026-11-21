@@ -119,9 +119,9 @@ export class JsonFileStore extends MemoryStore {
     return row;
   }
 
-  async revokeCode(codeHash) {
+  async revokeCodeCascade(codeHash) {
     await this.load();
-    const code = await super.revokeCode(codeHash);
+    const code = await super.revokeCodeCascade(codeHash);
     if (code) await this.persist();
     return code;
   }
