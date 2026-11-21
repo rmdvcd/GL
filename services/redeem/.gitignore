@@ -9,3 +9,4 @@ batch*.json
 import.sql
 /wrangler.toml
 node_modules/
+/wrangler.jsonc

@@ -233,8 +233,8 @@ oráculo. `CODE_ALREADY_REDEEMED` solo se devuelve a quien ya tiene el código.
 2. Generar claves y fijar secretos (nunca en el repositorio):
 
    ```bash
-   node src/cli.js gen-keys --role gl --out ../secrets/gl-issuer.json
-   node src/cli.js gen-keys --role service --out ../secrets/service.json
+   node src/cli.js gen-keys --role gl --out ./secrets/gl-issuer.json
+   node src/cli.js gen-keys --role service --out ./secrets/service.json
    openssl rand -base64 32   # CODE_PEPPER
 
    wrangler secret put GL_ISSUER_PUBLIC_KEY   # SPKI Base64 de gl-issuer.json
@@ -243,7 +243,7 @@ oráculo. `CODE_ALREADY_REDEEMED` solo se devuelve a quien ya tiene el código.
    wrangler secret put CODE_PEPPER            # Base64 de 32 bytes
    ```
 
-3. Configurar `wrangler.toml` (ver `examples/wrangler.toml`). Para DShalev,
+3. Configurar `wrangler.jsonc` (ver `examples/wrangler.jsonc`). Para DShalev,
    `MAX_SECUNDARIAS = "0"` hasta que su pantalla primaria emita sub-tokens;
    `ALLOWED_APPS = "DSHALEV"`. Desplegar:
 
@@ -257,14 +257,14 @@ oráculo. `CODE_ALREADY_REDEEMED` solo se devuelve a quien ya tiene el código.
 5. Acuñar e importar lotes:
 
    ```bash
-   node src/cli.js mint-batch --key ../secrets/gl-issuer.json \
-     --app DSHALEV --count 100 --type MENSUAL --out ../secrets/lote.json
-   node src/cli.js verify-batch --batch ../secrets/lote.json \
+   node src/cli.js mint-batch --key ./secrets/gl-issuer.json \
+     --app DSHALEV --count 100 --type MENSUAL --out ./secrets/lote.json
+   node src/cli.js verify-batch --batch ./secrets/lote.json \
      --public-key "$GL_ISSUER_PUBLIC_KEY"
-   CODE_PEPPER=... node src/cli.js sql-import --batch ../secrets/lote.json \
-     --public-key "$GL_ISSUER_PUBLIC_KEY" --out ../secrets/import.sql
-   wrangler d1 execute gl-redeem --remote --file ../secrets/import.sql
-   rm ../secrets/import.sql
+   CODE_PEPPER=... node src/cli.js sql-import --batch ./secrets/lote.json \
+     --public-key "$GL_ISSUER_PUBLIC_KEY" --out ./secrets/import.sql
+   wrangler d1 execute gl-redeem --remote --file ./secrets/import.sql
+   rm ./secrets/import.sql
    ```
 
    En producción, `mint-batch` debe ejecutarse **desde GL** (caso de uso Kotlin
@@ -279,7 +279,7 @@ oráculo. `CODE_ALREADY_REDEEMED` solo se devuelve a quien ya tiene el código.
 ```bash
 export GL_ISSUER_PUBLIC_KEY=... SERVICE_PRIVATE_KEY=... SERVICE_PUBLIC_KEY=...
 export CODE_PEPPER=... STORE_FILE=./data/dev.json ALLOWED_APPS=DSHALEV
-node src/cli.js import-local --batch ../secrets/lote.json --store ./data/dev.json
+node src/cli.js import-local --batch ./secrets/lote.json --store ./data/dev.json
 node src/node-server.js   # 0.0.0.0:8787
 ```
 
@@ -368,3 +368,5 @@ No incluye claves privadas ni representa claves de producción. El test
 El prompt para la implementación Python está en `docs/PROMPT_DSHALEV.md`.
 
 Tras transferir un rollover, restaura con el código más reciente: los períodos anteriores quedan absorbidos y revocados en la instalación de origen.
+
+Configura `ALLOWED_APPS` como lista separada por comas (propuestos: `DSHALEV`, `SHALEV-ANDROID`, `SHALEV-IOS`; confirmar antes del despliegue). Copia `examples/wrangler.jsonc` a `wrangler.jsonc` antes de ejecutar Wrangler. Los bindings `RL_IP` y `RL_DEVICE` son obligatorios y deniegan si fallan. No escriben contadores D1. El adaptador para pruebas con contadores limpia ventanas de más de un día de forma probabilística. Guía ampliada pendiente de entrega: `docs/GUIA_CLOUDFLARE_WORKERS_D1.md`.
