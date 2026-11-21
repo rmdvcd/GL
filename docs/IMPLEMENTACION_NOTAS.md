@@ -75,3 +75,9 @@ Lotes ya copiaba el código y anotaba entregas, pero no construía un mensaje pa
 Generator ya abría el canal de la solicitud. Ahora usa el mismo normalizador que el detalle: móvil local `5xxxxxxx` → `+535xxxxxxx`, conserva el móvil cubano internacional y los internacionales explícitos no cubanos. Si el número es ambiguo o no hay manejador, el cuerpo queda disponible para copiar o compartir. La entrega abre un borrador; GL no envía en segundo plano.
 
 El Registro guarda el código SPVI2 y permite reconstruir su mensaje sin emitir otra licencia. Para v1 solo guarda los datos de licencia y un código de referencia: no guarda el sobre cifrado de entrega. Se ofrece el envío v1 completo en Generator, **no** un falso reenvío desde el detalle ni un sobre regenerado.
+
+### G4 — política de frescura y decisión del propietario
+
+Los validadores v1 y SPVIR1 ya delegaban en `RequestFreshness`. Ahora un único intervalo inclusivo alimenta la validación y el aviso de error: se aceptan desde 72 horas antes hasta 2 horas después de la hora del emisor. No es la tolerancia del Worker de canje. Una prueba JVM fija los extremos y los instantes un nanosegundo fuera del intervalo.
+
+Ampliar la antigüedad, por ejemplo a siete días, permitiría presentar más tarde una **solicitud aún no utilizada**. No reabre por sí mismo la repetición de una solicitud ya emitida: la reserva atómica consume su nonce al emitir, siempre que se conserve ese registro. Requiere decisión del propietario y actualizar «Vale 72 horas» en los clientes Shalev antes del cambio. Esta entrega **no amplía** la ventana.
