@@ -33,3 +33,9 @@ Abre GL. No hay PIN ni huella: la app entra directamente al **Generador**.
 ## Qué no hace GL
 
 No cobra, no habla con internet propio, no sincroniza la nube, no pide contraseña, no revoca en los clientes a distancia.
+
+### Buscar una entrega en Lotes
+
+En **Lotes → Inventario guardado**, selecciona el lote por aplicación, fecha e ID. Los contadores muestran el total del lote, no solo las filas filtradas. Selecciona **ENTREGADO** para buscar por nombre o número de transacción anotado al entregar; también puedes buscar por la terminación visible del código. Para reenviar uno ya entregado, comprueba la nota del destinatario en la confirmación antes de copiarlo. Volver a copiar no cambia su estado ni genera un código nuevo.
+
+**LIBRE / ENTREGADO son estados locales de reparto**, no una consulta de activación al Worker. Marcar una entrega no acredita que el cliente haya canjeado el código.
