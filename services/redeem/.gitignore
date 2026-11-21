@@ -10,3 +10,5 @@ import.sql
 /wrangler.toml
 node_modules/
 /wrangler.jsonc
+/wrangler.production.jsonc
+.wrangler/

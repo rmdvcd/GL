@@ -59,3 +59,7 @@ Android sin JDK 17, Gradle ni SDK: no se afirma compilación, pruebas JVM, SQLCi
 | IDs comerciales, secundarias | Confirmar DSHALEV/SHALEV-ANDROID/SHALEV-IOS. Mantener 0 hasta validar clientes. |
 
 Se compararon en SQLite columnas, afinidad, nulabilidad, defaults y PK de las seis tablas: esquema v6 + DDL de `MIGRATION_6_7` frente a `7.json`. Coinciden. No sustituye compilar Room ni ejecutar la migración en Android. Búsqueda de marcadores PEM: la única coincidencia es la aserción preventiva de `compatibility.test.js`, no material de clave.
+
+### G1 — configuración local de Cloudflare
+
+`git ls-files` confirmó que se habían publicado la configuración de producción y la caché de cuenta. Se retiraron **del índice** (no del disco); usa `services/redeem/examples/wrangler.production.example.jsonc` como plantilla. Los IDs de cuenta/D1 y los metadatos de la cuenta siguen en el historial. Una purga con `git filter-repo` requiere decisión y coordinación del propietario; no se hizo. La prueba de higiene revisa el índice, no la configuración local ignorada.
