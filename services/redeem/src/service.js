@@ -47,7 +47,7 @@ function requireInstantInWindow(value, nowMs, skewMs) {
   requireString(value, "instant", 40);
   const parsed = Date.parse(value);
   if (!Number.isFinite(parsed) || !value.endsWith("Z")) throw new ApiError("INVALID_REQUEST");
-  if (Math.abs(nowMs - parsed) > skewMs) throw new ApiError("INVALID_REQUEST");
+  if (Math.abs(nowMs - parsed) > skewMs) throw new ApiError("CLOCK_SKEW", {detail:new Date(nowMs).toISOString()});
   return parsed;
 }
 
@@ -271,19 +271,6 @@ export class RedeemService {
         }
         expiresAt = new Date(remaining).toISOString();
       }
-    } else if (code.type !== "PERPETUA") {
-      const days = LICENSE_TYPES[code.type];
-      if (!Number.isInteger(days) || days <= 0) throw new ApiError("SERVER_ERROR");
-      // Rollover: un codigo nuevo no hace perder los dias que le quedan a la
-      // licencia activa de esta misma instalacion y app. Un reintento no pasa
-      // por aqui (el canje ya existe), asi que no se duplica el periodo.
-      let baseMs = nowMs;
-      const current = await this.store.getActiveByDevice(code.appId, thumbprint);
-      if (current?.expiresAt) {
-        const currentExpiry = Date.parse(current.expiresAt);
-        if (Number.isFinite(currentExpiry) && currentExpiry > nowMs) baseMs = currentExpiry;
-      }
-      expiresAt = new Date(baseMs + days * 24 * 60 * 60 * 1000).toISOString();
     }
 
     const row = {
@@ -304,8 +291,9 @@ export class RedeemService {
       createdAt: issuedAt,
     };
 
-    const claim = await this.store.claim(row);
+    const claim = await this.store.claim(row, transferredFrom ? null : LICENSE_TYPES[code.type]);
     if (!claim.ok) {
+      if (claim.reason === "unavailable") throw new ApiError("CODE_UNAVAILABLE");
       if (claim.reason === "request-exists") {
         if (
           claim.existing.deviceThumbprint !== thumbprint ||
@@ -371,10 +359,9 @@ export class RedeemService {
     }
     const row = await this.store.getByLicenseId(licenseId);
     if (!row) throw new ApiError("LICENSE_NOT_FOUND");
-    await this.store.setStatus(licenseId, "REVOCADA");
-    await this.store.revokeCode(row.codeHash);
+    const affected = await this.store.revokeCodeCascade(row.codeHash, licenseId);
     this.log("license_revoked", { appId: row.appId });
-    return { licenseId, status: "REVOCADA" };
+    return { licenseId, status: "REVOCADA", affected };
   }
 
   /**
@@ -417,9 +404,9 @@ export class RedeemService {
       throw new ApiError("INVALID_REQUEST");
     }
     const codeHash = await hashCode(normalized, this.pepper);
-    await this.store.revokeCode(codeHash);
+    const affected = await this.store.revokeCodeCascade(codeHash);
     this.log("code_revoked", {});
-    return { code: formatCode(normalized), status: "REVOKED" };
+    return { affected, status: "REVOKED" };
   }
 
   /** Utilidad de operador para pruebas manuales: no forma parte del protocolo. */

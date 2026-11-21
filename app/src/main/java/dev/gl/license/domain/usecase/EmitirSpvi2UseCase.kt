@@ -35,10 +35,13 @@ class EmitirSpvi2UseCase @Inject constructor(
     private val licencias: LicenciaRepository,
     private val clock: SecureClock,
 ) {
+    suspend fun registrada(id: String): Licencia? = licencias.getById(id)
+
     suspend operator fun invoke(
         sol: SolicitudSpviV2,
         pagoConfirmado: Boolean,
         txNumber: String? = null,
+        verificacionManual: Boolean = false,
         idFactory: () -> String = { UUID.randomUUID().toString() },
     ): Outcome<SpviEmitida> {
         if (sol.recupera == null && !pagoConfirmado) return Outcome.Err(AppError.InvalidPayload)
@@ -73,7 +76,13 @@ class EmitirSpvi2UseCase @Inject constructor(
             }
             if (used) return Outcome.Err(AppError.TransactionAlreadyUsed(cleanTx))
         }
-        val ahoraSec = ahora.epochSecond
+        val ahoraSec = try {
+            val ultima = licencias.all().asSequence().filter { it.appName == "SPVI" && it.deviceId == sol.deviceId }
+                .maxOfOrNull { Instant.parse(it.issuedAtIso).epochSecond }
+            maxOf(ahora.epochSecond, (ultima ?: (ahora.epochSecond - 1)) + 1)
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+        catch (_: Exception) { return Outcome.Err(AppError.RegistryFailure) }
+        if (ahoraSec - ahora.epochSecond > 86_400) return Outcome.Err(AppError.EmisorDesajustado)
 
         // 1. Recuperación de licencia
         if (sol.recupera != null) {
@@ -89,6 +98,11 @@ class EmitirSpvi2UseCase @Inject constructor(
             if (prevRecupera.status == EstadoLicencia.REVOCADA || prevRecupera.status == EstadoLicencia.VENCIDA) {
                 return Outcome.Err(AppError.RecuperacionInvalida)
             }
+            fun nombre(s: String) = java.text.Normalizer.normalize(s.trim().lowercase(), java.text.Normalizer.Form.NFD)
+                .replace(Regex("""\p{M}+"""), "").replace(Regex("""\s+"""), " ")
+            if (!verificacionManual && (prevRecupera.phone.trim() != sol.telefono.trim() ||
+                    nombre(prevRecupera.firstName) != nombre(sol.nombre) || nombre(prevRecupera.lastName) != nombre(sol.apellidos)))
+                return Outcome.Err(AppError.IdentidadNoVerificada)
             val esPerpetua = prevRecupera.type == dev.gl.license.domain.model.TipoLicencia.PERPETUA ||
                 prevRecupera.status == EstadoLicencia.PERPETUA
             val prevVenceSec = try {
@@ -101,12 +115,6 @@ class EmitirSpvi2UseCase @Inject constructor(
             }
             if (!prevRecupera.nationalId.trim().equals(sol.ci.trim(), ignoreCase = true)) {
                 return Outcome.Err(AppError.RecuperacionInvalida)
-            }
-
-            // Revoca la licencia anterior en el registro
-            when (val rev = licencias.upsert(prevRecupera.copy(status = EstadoLicencia.REVOCADA))) {
-                is Outcome.Err -> return rev
-                is Outcome.Ok -> Unit
             }
 
             val id = idFactory()
@@ -126,6 +134,8 @@ class EmitirSpvi2UseCase @Inject constructor(
                 expiresAtIso = if (esPerpetua) null else prevRecupera.expiresAtIso,
                 status = if (esPerpetua) EstadoLicencia.PERPETUA else EstadoLicencia.ACTIVA,
                 secundarias = prevRecupera.secundarias ?: sol.secundarias,
+                origen = dev.gl.license.domain.model.OrigenLicencia.RECUPERACION,
+                verificacionManual = verificacionManual,
                 precioCobrado = 0,
                 codigoCorto = null,
                 nonce = CryptoEngine.b64(CryptoEngine.randomBytes(16)),
@@ -140,6 +150,8 @@ class EmitirSpvi2UseCase @Inject constructor(
                 is Outcome.Err -> c
                 is Outcome.Ok -> {
                     val conCodigo = lic.copy(codigoCorto = c.value)
+                    val saved = licencias.issue(conCodigo, sol.nonce, sol.recupera?.trim())
+                    if (saved is Outcome.Err) return saved
                     val venceSec = if (esPerpetua) null else prevVenceSec
                     val mensaje = SpviResponseMessage.build(
                         prevRecupera.type, lic.secundarias ?: 0, ahoraSec, venceSec, id, c.value,
@@ -197,6 +209,7 @@ class EmitirSpvi2UseCase @Inject constructor(
                 expiresAtIso = venceAmpliaSec?.let { Instant.ofEpochSecond(it).toString() },
                 status = if (esPerpetua) EstadoLicencia.PERPETUA else EstadoLicencia.ACTIVA,
                 secundarias = sol.secundarias,
+                origen = dev.gl.license.domain.model.OrigenLicencia.AMPLIACION,
                 precioCobrado = PrecioTabla.ampliacion(prevAmplia.type, adicionales),
                 codigoCorto = null,
                 nonce = CryptoEngine.b64(CryptoEngine.randomBytes(16)),
@@ -211,6 +224,8 @@ class EmitirSpvi2UseCase @Inject constructor(
                 is Outcome.Err -> c
                 is Outcome.Ok -> {
                     val conCodigo = lic.copy(codigoCorto = c.value)
+                    val saved = licencias.issue(conCodigo, sol.nonce, sol.recupera?.trim())
+                    if (saved is Outcome.Err) return saved
                     val mensaje = SpviResponseMessage.build(
                         prevAmplia.type, sol.secundarias, ahoraSec, venceAmpliaSec, id, c.value,
                     )
@@ -266,6 +281,8 @@ class EmitirSpvi2UseCase @Inject constructor(
             is Outcome.Err -> c
             is Outcome.Ok -> {
                 val conCodigo = lic.copy(codigoCorto = c.value)
+                    val saved = licencias.issue(conCodigo, sol.nonce, sol.recupera?.trim())
+                    if (saved is Outcome.Err) return saved
                 val mensaje = SpviResponseMessage.build(
                     sol.tipo, sol.secundarias, emitidaSec, venceSec, id, c.value,
                 )

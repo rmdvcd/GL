@@ -7,7 +7,7 @@ import { fromBase64 } from "./canonical.js";
 import { D1Store } from "./d1-store.js";
 import { importPkcs8B64, importSpkiB64, signDer, verifyDer } from "./keys.js";
 import { createLogger } from "./log.js";
-import { StoreRateLimiter } from "./rate-limit.js";
+import { BindingRateLimiter, StoreRateLimiter } from "./rate-limit.js";
 import { MemoryStore } from "./store.js";
 import { RedeemService } from "./service.js";
 
@@ -58,11 +58,11 @@ export async function buildServiceFromEnv(env, overrides = {}) {
   const logger = overrides.logger ?? createLogger();
   const rateLimitMax = optionalNumber(env, "RATE_LIMIT_MAX", 30);
   const rateLimitWindowMs = optionalNumber(env, "RATE_LIMIT_WINDOW_MS", 60_000);
-  const rateLimiter = overrides.rateLimiter ?? new StoreRateLimiter({
+  const rateLimiter = overrides.rateLimiter ?? (env.DB ? new BindingRateLimiter(env, "RL_DEVICE") : new StoreRateLimiter({
     store,
     limit: rateLimitMax,
     windowMs: rateLimitWindowMs,
-  });
+  }));
 
   const service = new RedeemService({
     store,

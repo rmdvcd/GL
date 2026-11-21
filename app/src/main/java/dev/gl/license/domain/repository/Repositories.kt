@@ -8,6 +8,9 @@ import dev.gl.license.domain.model.SolicitudLicencia
 import kotlinx.coroutines.flow.Flow
 
 interface LicenciaRepository {
+    suspend fun issue(license: Licencia, requestNonce: String, previous: String? = null): Outcome<Unit> =
+        Outcome.Err(dev.gl.license.core.AppError.RegistryFailure)
+    suspend fun releaseReservation(id: String): Boolean = false
     fun observeAll(): Flow<List<Licencia>>
     suspend fun upsert(license: Licencia): Outcome<Unit>
     suspend fun getById(id: String): Licencia?

@@ -82,7 +82,7 @@ su clave privada sigue en el Keystore y la app Android no pide `INTERNET`.
 Ver [`docs/REDEEM_SERVICE.md`](docs/REDEEM_SERVICE.md) y
 [`services/redeem/README.md`](services/redeem/README.md). Estado: servicio y
 cliente de referencia implementados y probados (incluye rollover de renovación
-y sub-tokens de secundarias); integración DShalev y verificación con GL real
+y sub-tokens de secundarias); activación en el cliente Python de Shalev y verificación con GL real
 **pendientes**.
 
 ## Contrato criptográfico v1
@@ -119,7 +119,7 @@ Campos JSON: `v`, `nombre`, `apellidos`, `ci`, `via` (`WHATSAPP`\|`SMS`), `telef
 
 ### Licencia (plaintext)
 
-Todo lo anterior más `id` (UUID), `emitidaEn`, `venceEn` (null si perpetua), `estado` (`ACTIVA`\|`VENCIDA`\|`REVOCADA`\|`PERPETUA`), `licenciaObtenida` (código de 16 caracteres `XXXX-XXXX-XXXX-XXXX`), `secundarias` (otras apps con flujo v1; su clave se omite si es `null`), `periodoRestante` (días sumados por rollover si había licencia activa previa), `codigoCorto` (igual a `licenciaObtenida`), `txNumber` (comprobante comparado con las licencias ya registradas; la comprobación no reserva el número de forma atómica), `nonce` nuevo. `precioCobrado` no viaja en el JSON firmado: vive en memoria y Room, y el backup local `.glreg` lo conserva en metadatos separados, sin cambiar el payload de licencia. SPVI 0.23.1 no emite licencia larga: ver `CONTEXTO_LICENCIAS.md`.
+Todo lo anterior más `id` (UUID), `emitidaEn`, `venceEn` (null si perpetua), `estado` (`ACTIVA`\|`VENCIDA`\|`REVOCADA`\|`PERPETUA`), `licenciaObtenida` (código de 16 caracteres `XXXX-XXXX-XXXX-XXXX`), `secundarias` (otras apps con flujo v1; su clave se omite si es `null`), `periodoRestante` (días sumados por rollover si había licencia activa previa), `codigoCorto` (igual a `licenciaObtenida`), `txNumber` (comprobante reservado atómicamente antes de compartir), `nonce` nuevo. `precioCobrado` no viaja en el JSON firmado: vive en memoria y Room, y el backup local `.glreg` lo conserva en metadatos separados, sin cambiar el payload de licencia. SPVI 0.23.1 no emite licencia larga: ver `CONTEXTO_LICENCIAS.md`.
 
 Vencimiento: +30 / +180 / +365 días desde emisión (reloj del dispositivo) más días remanentes acumulados si procede.
 
@@ -129,15 +129,13 @@ El cliente de tus apps debe construir el envelope (ver `ClientRequestHelper`, `S
 
 ## Esquema de base de datos
 
-Room **v6**, SQLCipher, tablas `licenses` y `contact_methods`:
+Room **v7**, SQLCipher. La tabla `licenses` contiene:
 
-`id PK, firstName, lastName, nationalId, channel, phone, deviceId, appName, type, requestedAtIso, issuedAtIso, expiresAtIso, status, secundarias, precioCobrado, codigoCorto, nonce, version, txNumber`
+`id PK, firstName, lastName, nationalId, channel, phone, deviceId, appName, type, requestedAtIso, issuedAtIso, expiresAtIso, status, secundarias, precioCobrado, codigoCorto, nonce, version, txNumber, origen, verificacionManual`
 
 `contact_methods`: `id PK` (`"$kind:$value"`, deduplica por REPLACE), `kind` (`card`|`phone`), `value`, `createdAtIso`. Sin CVC en ningún sitio.
 
-v1→v2 añade `appName TEXT NOT NULL DEFAULT ''` en `GlMigrations.M_1_2`. v2→v3 crea `contact_methods` en `GlMigrations.M_2_3`. v3→v4 añade `secundarias INTEGER` y `precioCobrado INTEGER`, ambos opcionales, en `GlMigrations.M_3_4`. v4→v5 añade `codigoCorto TEXT` (opcional, código SPVI2) en `GlMigrations.M_4_5`. v5→v6 añade `txNumber TEXT` (opcional) en `GlMigrations.M_5_6`. No hay índice único sobre `txNumber`; el emisor comprueba los números contra licencias guardadas, pero la reserva no es atómica y queda pendiente mejorarla sin romper datos históricos.
-
-Orden: `issuedAtIso DESC`. Migraciones: `GlMigrations.ALL` contiene `M_1_2`, `M_2_3`, `M_3_4`, `M_4_5` y `M_5_6`; no se usa migración destructiva. Passphrase 32 B envuelta con AES-GCM del Keystore (`AAD=gl-db-v1`), ciphertext en `gl_db_meta`. El IV lo genera el Keystore (`setRandomizedEncryptionRequired(true)`) y se persiste en `w_iv`.
+v1→v2 añade `appName TEXT NOT NULL DEFAULT ''` en `GlMigrations.M_1_2`. v2→v3 crea `contact_methods` en `GlMigrations.M_2_3`. v3→v4 añade `secundarias INTEGER` y `precioCobrado INTEGER`, ambos opcionales, en `GlMigrations.M_3_4`. v4→v5 añade `codigoCorto TEXT` (opcional, código SPVI2) en `GlMigrations.M_4_5`. v5→v6 añade `txNumber TEXT` (opcional) en `GlMigrations.M_5_6`. v6→v7 añade `consumed_nonces`, `tx_reservations`, `signed_batches`, `batch_codes` y metadatos locales de emisión. La migración siembra las reservas sin exigir unicidad en los pagos históricos. Orden del registro: `issuedAtIso DESC`. `GlMigrations.ALL` incluye todas las migraciones; no se usa migración destructiva. Passphrase 32 B envuelta con AES-GCM del Keystore (`AAD=gl-db-v1`), ciphertext en `gl_db_meta`. El IV lo genera el Keystore (`setRandomizedEncryptionRequired(true)`) y se persiste en `w_iv`.
 
 Exportación: `docs/GLREG.md`.
 
@@ -147,10 +145,12 @@ Ver también `docs/MANUAL.md`.
 
 1. **Generador** (arranque): con la app visible y con foco de ventana, se lee el portapapeles si parece un envelope o un código `SPVIR1:`. También puedes pegar el texto a mano o usar el botón **Pegar**. El panel y la casilla “Pago realizado” solo aparecen si la solicitud es válida.
 2. En SPVI 0.23.1 se muestra el panel con los datos descifrados y el desglose de precio (sin corrección de secundarias). El caso de uso vuelve a validar la solicitud y limita su fecha a 72 horas de antigüedad / 2 horas futura antes de emitir. La casilla de pago es una confirmación manual: GL solo compara los dos números de transacción introducidos, no consulta al banco ni verifica el pago. Marca la casilla y pulsa **Generar licencia**. Abre WhatsApp (`wa.me`) o SMS solo con texto: el mensaje de respuesta (datos + renglón en blanco + código `SPVI2:`), que queda además en un cuadro de solo lectura con botón **Copiar mensaje**. En otras apps con flujo v1 el mensaje sigue siendo de 3 líneas: cobro, `ID:` y envelope.
-3. Al volver de la app de compartir, pulsa **Registrar**. La licencia entra en Room con estado `ACTIVA`, con secundarias y precio cobrado cuando corresponden (SPVI 0.23.1 guarda además el código corto).
+3. Antes de abrir WhatsApp/SMS, GL ya ha guardado la licencia y reservado nonce y pago. **Registrar** al volver confirma la operación en pantalla. Para SPVI, usa **Reenviar mensaje** con su ID sin volver a emitir. Si no se entregó, puedes liberar la reserva de pago desde el detalle.
 4. **Registro:** lista con countdown 1 Hz (solo con la pestaña visible). Cada fila muestra secundarias y precio cobrado cuando existen. Toque → detalle con ambas filas. Importar/Exportar `.glreg` con el selector de documentos (SAF); la lectura de importación está limitada a 32 MiB.
 5. **Contacto** (entre Generador y Registro): dos desplegables editables con botón Añadir — tarjetas/cuentas y teléfonos — persistidos en `contact_methods`. El botón **Copiar** deja en el portapapeles el encabezado `Tarjeta y numero a confirmar para compra de la licencia` + tarjeta + teléfono, en 3 líneas. Sin CVC en ningún sitio.
 6. **Claves:** las dos claves públicas de *este* teléfono (cifrado y firma) en Base64 SPKI con huella SHA-256, para fijarlas como ancla de confianza en la app cliente. Ver `CONTEXTO_LICENCIAS.md`.
+
+7. **Lotes**: crea y exporta un lote firmado; asigna códigos libres con nota de entrega. El inventario queda en SQLCipher. En **Registro → Exportar lista de revocadas**, guarda `revocadas.json` con SAF. La publicación en la release del cliente es manual.
 
 Sin permisos propios. Intents a WhatsApp/SMS. Sin almacenamiento amplio.
 
@@ -162,8 +162,8 @@ Sin permisos propios. Intents a WhatsApp/SMS. Sin almacenamiento amplio.
 - ECDH en Keystore con `PURPOSE_AGREE_KEY` es API 31+; por debajo el par EC se crea con otros propósitos (limitación Android).
 - `devicePub` es obligatorio y se valida como EC P-256, pero GL no prueba posesión ni atestación de hardware y no lo vincula a `deviceId`; por tanto, no garantiza exclusividad contra un cliente que copie esa clave.
 - WhatsApp/SMS no son canales confidenciales (metadatos visibles).
-- No hay revocación remota. `REVOCADA` es estado local.
-- La frescura usa el reloj de pared del emisor (máximo 72 h y 2 h de desfase futuro); no existe watermark monotónico ni consumo persistente del nonce. Por tanto, el reloj puede retroceder y una solicitud no queda protegida contra replay por nonce.
+- Una revocación no llega por sí sola a un cliente offline: publica la lista firmada o consulta `/v1/status` en el canje.
+- La frescura sigue dependiendo del reloj de pared (72 h / 2 h). SPVI conserva la monotonía por dispositivo y app, con un límite de 24 h, y el nonce se consume al emitir. No protege frente a borrado o rollback de toda la BD.
 - Reloj de vencimiento = reloj del aparato.
 - `.glreg` exporta formato local v2 e importa el formato legacy v1; ambos usan claves AES y de firma del Keystore local, así que no son portables a otro teléfono.
 - **No hay autenticación.** Se retiró el PIN y la biometría. Mientras la app está abierta, las claves no exigen `userAuthenticationRequired`, así que un atacante con el teléfono desbloqueado llega al registro. `FLAG_SECURE` sigue activo.

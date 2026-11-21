@@ -13,6 +13,8 @@ import kotlinx.serialization.json.Json
 @Serializable
 internal data class RegistryArchiveEntry(
     @SerialName("license") val license: Licencia,
+    val origen: dev.gl.license.domain.model.OrigenLicencia = dev.gl.license.domain.model.OrigenLicencia.EMISION,
+    val verificacionManual: Boolean = false,
     @SerialName("precioCobrado") val precioCobrado: Int? = null,
 )
 
@@ -21,7 +23,7 @@ internal object RegistryArchive {
 
     fun encode(licenses: List<Licencia>, json: Json): ByteArray {
         require(licenses.size <= MAX_ENTRIES) { "glreg-count" }
-        val entries = licenses.map { RegistryArchiveEntry(it, it.precioCobrado) }
+        val entries = licenses.map { RegistryArchiveEntry(it, it.origen, it.verificacionManual, it.precioCobrado) }
         return json.encodeToString(ListSerializer(RegistryArchiveEntry.serializer()), entries)
             .toByteArray(Charsets.UTF_8)
     }
@@ -36,7 +38,7 @@ internal object RegistryArchive {
             firstEntry.drop(1).trimStart().startsWith("\"license\"")
         return if (isArchiveEntryList) {
             json.decodeFromString(ListSerializer(RegistryArchiveEntry.serializer()), text)
-                .map { it.license.copy(precioCobrado = it.precioCobrado) }
+                .map { it.license.copy(precioCobrado = it.precioCobrado, origen = it.origen, verificacionManual = it.verificacionManual) }
         } else {
             json.decodeFromString(ListSerializer(Licencia.serializer()), text)
         }

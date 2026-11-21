@@ -26,3 +26,15 @@ export class StoreRateLimiter {
 export async function hashRateKey(pepper, scope, value) {
   return toBase64Url(await hmacSha256(pepper, utf8(`${scope}|${value}`)));
 }
+
+/** Cloudflare: sin escrituras en D1. Si el binding falla, denegar. */
+export class BindingRateLimiter {
+  constructor(env, name) {
+    if (typeof env[name]?.limit !== 'function') throw new Error(`missing-binding:${name}`);
+    this.binding = env[name];
+  }
+  async check(key) {
+    try { return (await this.binding.limit({key})).success === true; }
+    catch { return false; }
+  }
+}

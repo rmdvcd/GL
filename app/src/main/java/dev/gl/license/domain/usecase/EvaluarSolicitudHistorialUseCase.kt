@@ -152,8 +152,8 @@ class EvaluarSolicitudHistorialUseCase @Inject constructor(
             }
 
             // Si tiene activa (sea del mismo tipo o diferente): sumarle el periodo restante
-            // excepto que se solicite una perpetua; el periodo de prueba no cuenta (precioCobrado == 0)
-            val esPrueba = licenciaActiva.precioCobrado == 0
+            // excepto que se solicite una perpetua; el periodo de prueba no cuenta
+            val esPrueba = licenciaActiva.origen == dev.gl.license.domain.model.OrigenLicencia.PRUEBA
             val segundosRestantes = if (esPrueba || req.type == TipoLicencia.PERPETUA) {
                 0L
             } else {

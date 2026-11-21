@@ -58,8 +58,7 @@ Las notas siguientes describen el código de este repositorio, no las aplicacion
 
 ### Limitaciones que siguen abiertas
 
-- **Replay:** el nonce de solicitud no se consume ni persiste. La ventana temporal no impide volver a presentar el mismo envelope y el reloj del emisor (`System.currentTimeMillis()`) puede retroceder. No hay watermark resistente a rollback en este APK.
-- **Reserva de pago:** `txNumber` se comprueba contra licencias ya registradas, pero no hay índice único ni reserva atómica; la licencia se registra después de compartirla. Una carrera o un cierre antes de registrar todavía puede permitir reuso. No se añadió una migración que destruya/reescriba posibles duplicados históricos.
+- **Replay y pagos:** Room v7 consume nonce, reserva pago y guarda la licencia en la misma transacción. Se bloquea al fallar la base; al liberar un pago manualmente no se libera el nonce. Esto protege una instalación intacta, no un borrado, un rollback de toda la BD ni dos emisores independientes. Un `.glreg` no es copia de las tablas de nonces ni de inventario de lotes.
 - **`devicePub`:** es obligatorio y se valida como EC P-256; no hay proof-of-possession, attestation ni vínculo comprobado con `deviceId`. El cliente debe proteger su clave privada.
 - **Android 26–30:** `KeystoreManager` usa `PURPOSE_SIGN | PURPOSE_VERIFY` para la clave ECDH en esas versiones; no se ha verificado un fallback de `KeyAgreement`. No se eleva `minSdk` sin decisión explícita.
 - **Cliente no incluido:** watermark de reloj y verificación en runtime descritos en la guía son responsabilidad de las apps cliente y no están implementados por este APK. Los sub-tokens sí están implementados en el cliente JS de referencia; DShalev aún no los emite.
@@ -134,3 +133,9 @@ pieza **aparte** del APK. No añade `INTERNET` a GL.
 ## Lo que no está
 
 Backend, HSM remoto, PQC, Play Integrity, certificate pinning, revocación online, auditoría remota, gate de sesión (retirado), `userAuthenticationRequired` en las claves.
+
+## Raíces offline y reloj
+
+A y B son anclas públicas de build. Una raíz firma el directorio; la clave de firma del teléfono emite licencias, listas y lotes, no nuevos directorios. ECDH solo cifra solicitudes. Una retirada limita la ventana de emisión; marcar la clave comprometida invalida sus firmas incluso retroactivamente. Quien obtenga raíz y passphrase puede firmar un directorio malicioso. Véanse [contrato](docs/DIRECTORIO_V1.md) y [operación](docs/OPERACION_DIRECTORIO.md).
+
+SPVI aumenta la fecha por dispositivo/app y bloquea si compensar supera 24 h. En el canje online, un desfase superior a la ventana da HTTP 400 `CLOCK_SKEW` con `error.serverTime`; `/v1/time` usa TLS, no-store y limitación por IP. No es una prueba de tiempo offline. Ante fallo del binding se deniega la petición.

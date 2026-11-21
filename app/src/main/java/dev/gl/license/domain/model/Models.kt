@@ -21,6 +21,8 @@ enum class TipoLicencia {
     }
 }
 
+enum class OrigenLicencia { EMISION, RECUPERACION, AMPLIACION, PRUEBA }
+
 enum class EstadoLicencia { ACTIVA, VENCIDA, REVOCADA, PERPETUA }
 
 typealias RequestChannel = ViaSolicitud
@@ -95,6 +97,8 @@ data class Licencia(
     @SerialName("emitidaEn") val issuedAtIso: String,
     @SerialName("venceEn") val expiresAtIso: String?,
     @SerialName("estado") val status: EstadoLicencia,
+    @Transient val origen: OrigenLicencia = OrigenLicencia.EMISION,
+    @Transient val verificacionManual: Boolean = false,
     @Transient val precioCobrado: Int? = null,
     @EncodeDefault(EncodeDefault.Mode.NEVER) @SerialName("codigoCorto") val codigoCorto: String? = null,
     @SerialName("nonce") val nonce: String,

@@ -81,23 +81,25 @@ export function createHandler(options) {
       return jsonResponse({ ok: true, service: "gl-redeem", v: 1 }, 200, corsHeaders);
     }
 
-    if (url.pathname !== "/v1/redeem" && url.pathname !== "/v1/status") {
+    const time = url.pathname === "/v1/time";
+    if (!time && url.pathname !== "/v1/redeem" && url.pathname !== "/v1/status") {
       return jsonResponse(
         { v: 1, ok: false, error: { code: "NOT_FOUND", message: "Ruta no encontrada." } },
         404,
         corsHeaders,
       );
     }
-    if (request.method !== "POST") {
+    if (request.method !== (time ? "GET" : "POST")) {
       return jsonResponse(
         { v: 1, ok: false, error: { code: "METHOD_NOT_ALLOWED", message: "Metodo no permitido." } },
         405,
-        { ...corsHeaders, allow: "POST, OPTIONS" },
+        { ...corsHeaders, allow: time ? "GET, OPTIONS" : "POST, OPTIONS" },
       );
     }
 
     try {
       await limitByIp(request);
+      if (time) return jsonResponse({v:1, ok:true, now:new Date(service.now()).toISOString()},200,corsHeaders);
       const body = await readJson(request, maxBodyBytes);
       if (url.pathname === "/v1/redeem") {
         const result = await service.redeem(body);
@@ -117,7 +119,7 @@ export function createHandler(options) {
         logger("http_error", { reason: apiError.code });
       }
       return jsonResponse(
-        { v: 1, ok: false, error: { code: apiError.code, message: apiError.publicMessage } },
+        { v: 1, ok: false, error: { code: apiError.code, message: apiError.publicMessage, ...(apiError.code === "CLOCK_SKEW" ? {serverTime:apiError.detail} : {}) } },
         apiError.status,
         corsHeaders,
       );

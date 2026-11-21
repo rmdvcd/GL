@@ -57,5 +57,23 @@ object GlMigrations {
         }
     }
 
-    val ALL: Array<Migration> = arrayOf(M_1_2, M_2_3, M_3_4, M_4_5, M_5_6)
+    val MIGRATION_6_7 = object : Migration(6, 7) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE licenses ADD COLUMN origen TEXT NOT NULL DEFAULT 'EMISION'")
+            db.execSQL("ALTER TABLE licenses ADD COLUMN verificacionManual INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("CREATE TABLE batch_codes (codeHash TEXT NOT NULL PRIMARY KEY, batchId TEXT NOT NULL, code TEXT NOT NULL, estado TEXT NOT NULL, nota TEXT NOT NULL)")
+            db.execSQL("CREATE TABLE signed_batches (batchId TEXT NOT NULL PRIMARY KEY, appId TEXT NOT NULL, createdAt TEXT NOT NULL, payload TEXT NOT NULL)")
+            db.execSQL("CREATE TABLE consumed_nonces (nonce TEXT NOT NULL PRIMARY KEY, consumedAtIso TEXT NOT NULL)")
+            db.execSQL("CREATE TABLE tx_reservations (txKey TEXT NOT NULL PRIMARY KEY, licenseId TEXT NOT NULL, createdAtIso TEXT NOT NULL)")
+            db.query("SELECT txNumber, id, issuedAtIso FROM licenses WHERE txNumber IS NOT NULL ORDER BY issuedAtIso, id").use { rows ->
+                while (rows.moveToNext()) {
+                    val key = txKey(rows.getString(0))
+                    if (key.isNotEmpty()) db.execSQL("INSERT OR IGNORE INTO tx_reservations VALUES (?, ?, ?)",
+                        arrayOf(key, rows.getString(1), rows.getString(2)))
+                }
+            }
+        }
+    }
+
+    val ALL: Array<Migration> = arrayOf(M_1_2, M_2_3, M_3_4, M_4_5, M_5_6, MIGRATION_6_7)
 }

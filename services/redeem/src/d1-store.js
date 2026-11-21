@@ -7,6 +7,7 @@
  * No se ha ejecutado contra un D1 real en este entorno; ver README.
  */
 
+import { absorbedBy } from "./cascade.js";
 import { MemoryStore } from "./store.js";
 
 const COLUMNS = `license_id, redemption_id, request_id, code_hash, app_id, type,
@@ -171,12 +172,17 @@ export class D1Store extends MemoryStore {
     return { ...pending, toThumbprint };
   }
 
-  async claim(row) {
+  async claim(row, days) {
     try {
-      await this.db.batch([
+      const [insert] = await this.db.batch([
         this.db
           .prepare(
-            `INSERT INTO redemptions (${COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO redemptions (${COLUMNS}) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ${days ? `strftime('%Y-%m-%dT%H:%M:%fZ',
+              max(julianday(?), coalesce((SELECT max(julianday(expires_at)) FROM redemptions
+                WHERE active=1 AND app_id=? AND device_thumbprint=?), 0)) + ?)` : '?'}, ?, ?, ?, ?, ?
+            WHERE EXISTS (SELECT 1 FROM codes WHERE code_hash=? AND state='UNUSED') AND
+            ${row.transferredFrom ? `EXISTS (SELECT 1 FROM transfers WHERE code_hash=? AND from_license_id=? AND to_thumbprint=?)`
+                : `NOT EXISTS (SELECT 1 FROM redemptions WHERE code_hash=?)`}`,
           )
           .bind(
             row.licenseId,
@@ -188,16 +194,23 @@ export class D1Store extends MemoryStore {
             row.secundarias,
             row.status,
             row.issuedAt,
-            row.expiresAt,
+            ...(days ? [row.issuedAt, row.appId, row.deviceThumbprint, days] : [row.expiresAt]),
             row.deviceThumbprint,
             row.devicePublicKey,
             row.active ? 1 : 0,
             row.transferredFrom,
-            row.createdAt,
+            row.createdAt, row.codeHash, row.codeHash,
+            ...(row.transferredFrom ? [row.transferredFrom,row.deviceThumbprint] : []),
           ),
-        this.db.prepare("DELETE FROM transfers WHERE code_hash = ?").bind(row.codeHash),
+        this.db.prepare("DELETE FROM transfers WHERE code_hash = ? AND EXISTS (SELECT 1 FROM redemptions WHERE license_id=?)").bind(row.codeHash,row.licenseId),
       ]);
-      return { ok: true, row };
+      if (!insert.meta.changes) {
+        const request = await this.getByRequest(row.requestId);
+        if (request) return {ok:false, reason:"request-exists", existing:request};
+        const active = await this.getActiveByCode(row.codeHash);
+        return active ? {ok:false, reason:"code-active", existing:active} : {ok:false, reason:"unavailable"};
+      }
+      return { ok: true, row: await this.getByRequest(row.requestId) };
     } catch {
       const byRequest = await this.getByRequest(row.requestId);
       if (byRequest) return { ok: false, reason: "request-exists", existing: byRequest };
@@ -229,33 +242,31 @@ export class D1Store extends MemoryStore {
       return null;
     }
     const createdAt = new Date().toISOString();
-    await this.db.batch([
-      this.db
-        .prepare("UPDATE redemptions SET status = 'REVOCADA', active = 0 WHERE license_id = ?")
-        .bind(licenseId),
-      this.db
-        .prepare(
-          `INSERT INTO transfers (code_hash, from_license_id, to_thumbprint, created_at)
-           VALUES (?, ?, ?, ?)
-           ON CONFLICT(code_hash) DO UPDATE SET
-             from_license_id = excluded.from_license_id,
-             to_thumbprint = excluded.to_thumbprint,
-             created_at = excluded.created_at`,
-        )
-        .bind(row.codeHash, licenseId, toThumbprint, createdAt),
+    const [insert] = await this.db.batch([
+      this.db.prepare(`INSERT INTO transfers(code_hash, from_license_id, to_thumbprint, created_at)
+        SELECT code_hash, license_id, ?, ? FROM redemptions WHERE license_id=? AND active=1`)
+        .bind(toThumbprint,createdAt,licenseId),
+      this.db.prepare(`UPDATE redemptions SET active=0, status='REVOCADA' WHERE active=1 AND
+        EXISTS (SELECT 1 FROM transfers WHERE from_license_id=? AND to_thumbprint=?) AND
+        (license_id=? OR ${absorbedBy('?')})`).bind(licenseId,toThumbprint,licenseId,licenseId),
     ]);
+    if (!insert.meta.changes) return null;
     return { ...row, active: false, status: "REVOCADA" };
   }
 
-  async revokeCode(codeHash) {
-    await this.db.batch([
+  async revokeCodeCascade(codeHash, licenseId = null) {
+    const where = `active=1 AND (code_hash=? OR ${absorbedBy("?")})`;
+    const [affected] = await this.db.batch([
+      this.db.prepare(`SELECT license_id FROM redemptions WHERE ${where}`).bind(codeHash, licenseId),
+      this.db.prepare(`UPDATE redemptions SET status = 'REVOCADA', active = 0 WHERE ${where}`).bind(codeHash, licenseId),
       this.db.prepare("UPDATE codes SET state = 'REVOKED' WHERE code_hash = ?").bind(codeHash),
       this.db.prepare("DELETE FROM transfers WHERE code_hash = ?").bind(codeHash),
     ]);
-    return this.getCode(codeHash);
+    return affected.results.map(row => row.license_id);
   }
 
   async incrementCounter(key, windowStart) {
+    if (Math.random() < 0.01) await this.db.prepare("DELETE FROM counters WHERE window_start < ?").bind(windowStart - 86400000).run();
     await this.db
       .prepare(
         `INSERT INTO counters (key, window_start, count) VALUES (?, ?, 1)

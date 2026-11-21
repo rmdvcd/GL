@@ -1,0 +1,84 @@
+{
+  "nota": "Solo claves públicas de PRUEBA; nunca usar como raíz de producción.",
+  "root": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEzmLhthXlxGsTP47lBuqMHRmoAGXUMymjbPcuXO0TXzNLUgTqJ+g75MKAyCKa7SwM56vKC7NHtc2zrCL/Pb6NEw==",
+  "issuer": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE/bk7EuhOnWEuV4FcPPf6ZIxh32GmVhnJ601atR8IuqBUZWXYwk/kkkDYDq3gTsf07PFHgWueEL8NVQLezwQ1GA==",
+  "envelope": {
+    "datos": "{\"v\":1,\"seq\":7,\"emitidaEn\":1790000000,\"claves\":[{\"kid\":\"test-sign\",\"uso\":\"firma\",\"spki\":\"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE/bk7EuhOnWEuV4FcPPf6ZIxh32GmVhnJ601atR8IuqBUZWXYwk/kkkDYDq3gTsf07PFHgWueEL8NVQLezwQ1GA==\",\"huella\":\"sha256:c0e6:82fa:3959:c6e2:a3d7:c20b:94aa:0b04:fbc0:3784:6eda:b412:ba07:971d:e4e2:7e7e\",\"desde\":1790000000,\"hasta\":null,\"estado\":\"vigente\"}]}",
+    "firma": "JPIhREXkDbQ1zC7rPbDrixLGsctHMs3jsRu2z2veoFf6LcUYKzubUfPvZbhn7pJV3o2ZT7B6ulfVikdBeKd-6A",
+    "raiz": "A"
+  },
+  "cases": [
+    {
+      "name": "version",
+      "expected": false,
+      "envelope": {
+        "datos": "{\"v\":2,\"seq\":7,\"emitidaEn\":1790000000,\"claves\":[{\"kid\":\"test-sign\",\"uso\":\"firma\",\"spki\":\"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE/bk7EuhOnWEuV4FcPPf6ZIxh32GmVhnJ601atR8IuqBUZWXYwk/kkkDYDq3gTsf07PFHgWueEL8NVQLezwQ1GA==\",\"huella\":\"sha256:c0e6:82fa:3959:c6e2:a3d7:c20b:94aa:0b04:fbc0:3784:6eda:b412:ba07:971d:e4e2:7e7e\",\"desde\":1790000000,\"hasta\":null,\"estado\":\"vigente\"}]}",
+        "raiz": "A",
+        "firma": "SGQhjxdQcGYNMIQ2b7nG9oEK6HLePt5XYiFe2Law13dBjAeN8jNS7vJC1QukF513ENNX3qBIFjRQawz5GKBf9g"
+      }
+    },
+    {
+      "name": "huella",
+      "expected": false,
+      "envelope": {
+        "datos": "{\"v\":1,\"seq\":7,\"emitidaEn\":1790000000,\"claves\":[{\"kid\":\"test-sign\",\"uso\":\"firma\",\"spki\":\"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE/bk7EuhOnWEuV4FcPPf6ZIxh32GmVhnJ601atR8IuqBUZWXYwk/kkkDYDq3gTsf07PFHgWueEL8NVQLezwQ1GA==\",\"huella\":\"incorrecta\",\"desde\":1790000000,\"hasta\":null,\"estado\":\"vigente\"}]}",
+        "raiz": "A",
+        "firma": "owvCox5HBYjHacUVitu7ArBC0b3A09r13BFJtb_3NHn4G6H3RRhfUq_K8x5ku4w4d1Eq4fARD05YYed_elLuvw"
+      }
+    },
+    {
+      "name": "curva",
+      "expected": false,
+      "envelope": {
+        "datos": "{\"v\":1,\"seq\":7,\"emitidaEn\":1790000000,\"claves\":[{\"kid\":\"test-sign\",\"uso\":\"firma\",\"spki\":\"MHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEqGQCVyHQVbLqEhJ4Zvg5HhWQ4fZ4sYTSiWpDDlYKqiOscSukOqsO4X/+ysQAnn8titzKtdSmUNAKG/BAWE0hg2FHgyxiMcuV5mfOe0/Mo6vQJaleiXsVVJzy53h7c0qk\",\"huella\":\"sha256:c0e6:82fa:3959:c6e2:a3d7:c20b:94aa:0b04:fbc0:3784:6eda:b412:ba07:971d:e4e2:7e7e\",\"desde\":1790000000,\"hasta\":null,\"estado\":\"vigente\"}]}",
+        "raiz": "A",
+        "firma": "44N4pyIXcsRJTXmlkeSEJmt3KHQRmaxHQEpd4ugymGWOLaYiuPdTI4uCVR82GpgokB6WG5xbYKGFDObY0iJJYg"
+      }
+    },
+    {
+      "name": "ecdh",
+      "expected": false,
+      "envelope": {
+        "datos": "{\"v\":1,\"seq\":7,\"emitidaEn\":1790000000,\"claves\":[{\"kid\":\"test-1\",\"uso\":\"ecdh\",\"spki\":\"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEDwcd8TUTHjIiQSFVqlFNBj6xBMVXWpwJBx8SG6ypOBkZRDui0/QQezShrBjirbXj4KxMvEQGRQaCqjQOhkhvkA==\",\"huella\":\"sha256:71db:c345:4486:89bf:3621:76b0:faf0:2ec2:47c9:d6f6:27ae:2316:e441:1014:8c08:cc49\",\"desde\":1790000000,\"hasta\":null,\"estado\":\"vigente\"},{\"kid\":\"test-2\",\"uso\":\"ecdh\",\"spki\":\"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE9XhOc/kPXXhKCTKYAkeDK1RuWZsZ0xZcBKG64rXh8WpdCRVPxLWmczp+P/0opkPTBlmxOwmNKF4QDy0a5lmiSg==\",\"huella\":\"sha256:7051:1ac7:5689:6c6f:d7e7:8c7a:5ee1:8f5e:76ab:4603:0dd3:471d:c8b4:8848:f26e:0117\",\"desde\":1790000000,\"hasta\":null,\"estado\":\"vigente\"}]}",
+        "raiz": "A",
+        "firma": "G2b6XwGjgI57HyME6BUIVa7xQDyKCiNU4sB_EMGEKWimOVxdMqFuhXVfnF_MF-tz-GnC2wTJINS7wePkXrQtQQ"
+      }
+    },
+    {
+      "name": "extension",
+      "expected": true,
+      "envelope": {
+        "datos": "{\"v\":1,\"seq\":8,\"emitidaEn\":1790000000,\"claves\":[{\"kid\":\"test-sign\",\"uso\":\"firma\",\"spki\":\"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE/bk7EuhOnWEuV4FcPPf6ZIxh32GmVhnJ601atR8IuqBUZWXYwk/kkkDYDq3gTsf07PFHgWueEL8NVQLezwQ1GA==\",\"huella\":\"sha256:c0e6:82fa:3959:c6e2:a3d7:c20b:94aa:0b04:fbc0:3784:6eda:b412:ba07:971d:e4e2:7e7e\",\"desde\":1790000000,\"hasta\":null,\"estado\":\"vigente\"}],\"extra\":true}",
+        "raiz": "A",
+        "firma": "8zCmj42scAr7_5UVfbbSYAy6kfKGvkLyzFW5vS9CjGp-6X3Tyf5ZtgFW7iPFOIQPTJPw4rHnec4JFbnax9RJ7g"
+      }
+    },
+    {
+      "name": "retroceso",
+      "expected": false,
+      "envelope": {
+        "datos": "{\"v\":1,\"seq\":6,\"emitidaEn\":1790000000,\"claves\":[{\"kid\":\"test-sign\",\"uso\":\"firma\",\"spki\":\"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE/bk7EuhOnWEuV4FcPPf6ZIxh32GmVhnJ601atR8IuqBUZWXYwk/kkkDYDq3gTsf07PFHgWueEL8NVQLezwQ1GA==\",\"huella\":\"sha256:c0e6:82fa:3959:c6e2:a3d7:c20b:94aa:0b04:fbc0:3784:6eda:b412:ba07:971d:e4e2:7e7e\",\"desde\":1790000000,\"hasta\":null,\"estado\":\"vigente\"}]}",
+        "raiz": "A",
+        "firma": "rEzlOvvD4nNngBK92clBUewHzoh3H5SGkqOFPphs3e9lu0cCjl6JuA14BK2DC2EbqtuuTu3YTCcOSAyUKzwlSA"
+      }
+    },
+    {
+      "name": "empate distinto",
+      "expected": false,
+      "envelope": {
+        "datos": "{\"v\":1,\"seq\":7,\"emitidaEn\":1790000000,\"claves\":[{\"kid\":\"test-sign\",\"uso\":\"firma\",\"spki\":\"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE/bk7EuhOnWEuV4FcPPf6ZIxh32GmVhnJ601atR8IuqBUZWXYwk/kkkDYDq3gTsf07PFHgWueEL8NVQLezwQ1GA==\",\"huella\":\"sha256:c0e6:82fa:3959:c6e2:a3d7:c20b:94aa:0b04:fbc0:3784:6eda:b412:ba07:971d:e4e2:7e7e\",\"desde\":1790000000,\"hasta\":null,\"estado\":\"vigente\"}],\"extra\":true}",
+        "raiz": "A",
+        "firma": "FY7iPMb4MFPIHxTsTd5Pibgt1DXj61AqvThvXIyhKVK-LotQqwB-5J-uHCy0esIluzDk4u_G6eLI7vVGtKA1xA"
+      }
+    },
+    {
+      "name": "firma alterada",
+      "expected": false,
+      "envelope": {
+        "datos": "{\"v\":1,\"seq\":7,\"emitidaEn\":1790000000,\"claves\":[{\"kid\":\"test-sign\",\"uso\":\"firma\",\"spki\":\"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE/bk7EuhOnWEuV4FcPPf6ZIxh32GmVhnJ601atR8IuqBUZWXYwk/kkkDYDq3gTsf07PFHgWueEL8NVQLezwQ1GA==\",\"huella\":\"sha256:c0e6:82fa:3959:c6e2:a3d7:c20b:94aa:0b04:fbc0:3784:6eda:b412:ba07:971d:e4e2:7e7e\",\"desde\":1790000000,\"hasta\":null,\"estado\":\"vigente\"}]} ",
+        "firma": "JPIhREXkDbQ1zC7rPbDrixLGsctHMs3jsRu2z2veoFf6LcUYKzubUfPvZbhn7pJV3o2ZT7B6ulfVikdBeKd-6A",
+        "raiz": "A"
+      }
+    }
+  ]
+}

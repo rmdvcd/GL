@@ -19,7 +19,7 @@ object SpviResponseMessage {
         val nombre = tipo.name.lowercase().replaceFirstChar { it.uppercase() }
         val emitida = formato.format(Instant.ofEpochSecond(emitidaSec).atZone(zona))
         val vence = if (venceSec == null) "nunca" else formato.format(Instant.ofEpochSecond(venceSec).atZone(zona))
-        return "Licencia SPVI\n" +
+        return "Licencia Shalev\n" +
             "Tipo: $nombre\n" +
             "Apps secundarias: $secundarias\n" +
             "Emitida: $emitida\n" +

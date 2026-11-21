@@ -191,6 +191,9 @@ private fun KeyBlock(
         }
         Spacer(Modifier.height(8.dp))
         val context = LocalContext.current
+        GlSecondaryButton(text = "Copiar entrada de directorio", onClick = {
+            copyToClipboard(context, PublicKeyBundle.directoryEntry(key, isSigningKey, java.time.Instant.now().epochSecond))
+        })
         val copyLabel = stringResource(R.string.trust_copy_one)
         val copyDescription = stringResource(R.string.cd_copy_key, title)
         GlSecondaryButton(

@@ -11,9 +11,9 @@ en [`services/redeem/README.md`](../services/redeem/README.md).
 | Esquema D1 y adaptador | `migrations/0001_init.sql`, `src/d1-store.js` | Ejecutado sobre `node:sqlite`; **no** contra D1 real |
 | Cliente de referencia | `services/redeem/src/client/redeem-client.js` | Implementado y probado |
 | Acuñación de lotes en GL | `domain/model/RedeemBatch.kt`, `domain/usecase/CrearLoteCanjeUseCase.kt` | Escrito; **no compilado** en este entorno |
-| Pruebas JS | `services/redeem/test/` | 107 pruebas, 0 fallos |
+| Pruebas JS | `services/redeem/test/` | 119 pruebas, 0 fallos |
 | Pruebas Kotlin del lote | `app/src/test/.../RedeemBatchTest.kt` | Escritas; **no ejecutadas** (sin JDK/Android SDK) |
-| Integración DShalev | — | **No realizada**: exportación Repomix revisada; acceso directo al repositorio pendiente |
+| Integración DShalev | — | Cliente Python presente, comercial deshabilitado |
 
 ## Decisión de diseño
 
@@ -88,39 +88,25 @@ El servicio no guarda códigos, tokens, nonces, IPs ni datos personales. Guarda
 `HMAC-SHA256(pepper, código)`, el thumbprint y la SPKI pública de la clave del
 dispositivo, y metadatos de la licencia. El logger solo admite una lista blanca de campos.
 
-## Por qué no se integra DShalev todavía
+## Estado del cliente
 
-Los tres documentos ya están copiados en `docs/` (`LICENSE_CLIENT.md`,
-`GL_ESPECIFICACION.md`, `DSHALEV_GL_SERVICIO_PROPUESTA.md`). El repositorio
-`rmdvcd/Shalev` sigue devolviendo `403 Resource not accessible by integration`
-para el token de esta sesión, incluso después de que el usuario dijera que daría
-acceso; hay que confirmar la instalación de la GitHub App o reconectar GitHub en
-Arena.
-
-Se recibió y revisó una exportación Repomix de DShalev. Es Python/FastAPI,
-con panel informativo en `dshalev/templates/license.html`, ruta en `app.py`,
-y una prueba local para secundarias en `sync_server.py`; no es un cliente .NET.
-La exportación puede omitir archivos, no acredita el estado actual del repositorio
-y no permite modificarlo aquí. La integración sigue pendiente. El prompt
-[`PROMPT_DSHALEV.md`](PROMPT_DSHALEV.md) describe los cambios para otra sesión.
+`rmdvcd/Shalev` incluye un cliente Python en `Web-Desktop/dshalev/licencia/`; la configuración comercial está vacía hasta desplegar y fijar URL y claves. No se ha probado aquí ese build.
 
 ## Pendiente antes de uso comercial
 
-1. Acceso efectivo al repositorio DShalev y revisión de su estado actual.
-2. Integrar el cliente en DShalev y ejecutar sus pruebas.
+1. Fijar URL y claves en el cliente real.
+2. Ejecutar las pruebas cruzadas en Shalev.
 3. Compilar GL con JDK 17 y ejecutar `:app:testDebugUnitTest` (incluye
    `RedeemBatchTest`). Aquí no hay JDK, Android SDK ni Maven Central.
 4. Exportar un lote desde el GL real y canjearlo con un build real de DShalev.
 5. Desplegar Cloudflare Workers + D1 y probar el flujo sobre HTTPS real.
 6. Decidir custodia/rotación de `gl-redeem-v1` y plan de compromiso.
-7. Añadir la pantalla de operador en GL para acuñar y exportar lotes.
+7. Validar la pantalla Lotes de GL en un teléfono real.
 8. Definir el canal de soporte para transferencias y restauraciones.
 9. Pruebas de carga, abuso y límites del borde.
 10. Si se quiere revocación efectiva sin conexión, cambiar la política offline
     (hoy es «válida hasta el vencimiento»).
-11. Resolver renovaciones simultáneas de códigos distintos para la misma
-    instalación: el rollover actual lee antes de insertar y no serializa esas
-    renovaciones; pueden perderse días. No vender esta función hasta resolverlo.
+11. **Resuelto**: rollover dentro del INSERT (`8c3dbe6`); revocación por código e instalación (`00b867d`, `0b389c6`) y guardia al reclamar (`e6fa2be`). Comprobado en SQLite, pendiente prueba en Cloudflare.
 12. Resolver reutilización de slots y compatibilidad de sub-tokens con las
     secundarias reales antes de elevar `MAX_SECUNDARIAS` sobre cero.
 
@@ -131,14 +117,14 @@ cd services/redeem
 npm test
 ```
 
-Resultado de esta sesión: **107 pruebas, 0 fallos** (Node 22.22.3).
+Resultado de esta sesión: **119 pruebas, 0 fallos** (Node 22.22.3).
 Las pruebas cubren criptografía, lotes, canje, idempotencia, concurrencia,
 manipulación, red, offline, transferencia, rollover, sub-tokens de secundarias,
 HTTP, privacidad y el esquema D1 sobre `node:sqlite`.
 
 ## Integración en DShalev
 
-**Documentación recibida y revisada. Integración en código: no iniciada.**
+El cliente de referencia de este repo no sustituye las pruebas del cliente Python.
 
 Se recibieron `LICENSE_CLIENT.md`, `docs/GL_ESPECIFICACION.md` y
 `docs/DSHALEV_GL_SERVICIO_PROPUESTA.md`. De ellos se extrae:
@@ -157,14 +143,7 @@ Se recibieron `LICENSE_CLIENT.md`, `docs/GL_ESPECIFICACION.md` y
   venderse como derecho efectivo hasta que DShalev tenga la pantalla que emite
   permisos.
 
-La exportación revisada muestra Python/FastAPI y un panel informativo sin
-verificador GL. `database.py` usa DPAPI para la clave de la base; eso no es una
-identidad de licencia. `sync_server.py` envía una prueba provisional de siete
-días. Los respaldos pueden restaurarse en otro equipo y los locales tienen datos
-separados: ambos necesitan una política explícita antes de producción. El
-repositorio directo no fue accesible en esta sesión; no se modificó DShalev.
-
-### Qué debe implementar DShalev cuando se dé acceso
+### Requisitos que verificar en el cliente desplegado
 
 1. **Identidad persistente:** generar una clave P-256 una vez y guardarla
    protegida por el SO (DPAPI/CNG en Windows). Exportar la SPKI para el canje y

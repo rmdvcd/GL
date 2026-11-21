@@ -37,6 +37,7 @@ private fun usableTransaction(value: String): Boolean =
     value.isNotBlank() && value.length <= MAX_TRANSACTION_CHARS && value.none { it.isISOControl() }
 
 data class GeneratorUi(
+    val verificacionManual: Boolean = false,
     val raw: String = "",
     val solicitud: SolicitudLicencia? = null,
     val txCliente: String = "",
@@ -121,6 +122,7 @@ class GeneratorViewModel @Inject constructor(
         val raw = text.take(MAX_RAW_REQUEST_CHARS)
         _ui.update {
             it.copy(
+                verificacionManual = false,
                 raw = raw,
                 loading = false,
                 error = null,
@@ -327,6 +329,8 @@ class GeneratorViewModel @Inject constructor(
         }
     }
 
+    fun setVerificacionManual(value: Boolean) { _ui.update { it.copy(verificacionManual = value) } }
+
     fun setPaid(v: Boolean) {
         val current = _ui.value
         val isRecovery = current.spvi?.recupera != null
@@ -352,7 +356,7 @@ class GeneratorViewModel @Inject constructor(
             try {
                 val spvi = current.spvi
                 if (spvi != null) {
-                    when (val r = emitirSpvi(spvi, pagoConfirmado = isRecovery || current.paid, txNumber = tx)) {
+                    when (val r = emitirSpvi(spvi, pagoConfirmado = isRecovery || current.paid, txNumber = tx, verificacionManual = current.verificacionManual)) {
                         is Outcome.Err -> if (isCurrentGeneration(generation, current.raw, tx)) {
                             _ui.update { it.copy(error = r.error.userMessage) }
                         }
@@ -460,24 +464,26 @@ class GeneratorViewModel @Inject constructor(
         }
     }
 
+    fun resend(id: String) {
+        viewModelScope.launch {
+            try {
+                val lic = emitirSpvi.registrada(id.trim())
+                val code = lic?.codigoCorto
+                if (lic == null || lic.version != 2 || code == null || lic.status == dev.gl.license.domain.model.EstadoLicencia.REVOCADA) {
+                    _ui.update { it.copy(error = "No hay una emisión SPVI reenviable con ese ID.") }; return@launch
+                }
+                val body = dev.gl.license.domain.model.SpviResponseMessage.build(lic.type, lic.secundarias ?: 0,
+                    java.time.Instant.parse(lic.issuedAtIso).epochSecond, lic.expiresAtIso?.let { java.time.Instant.parse(it).epochSecond }, lic.id, code)
+                _share.emit(if (lic.channel == ViaSolicitud.SMS) ShareEvent.Sms(lic.phone, body) else ShareEvent.WhatsApp(lic.phone, body))
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+            catch (_: Exception) { _ui.update { it.copy(error = AppError.RegistryFailure.userMessage) } }
+        }
+    }
+
     fun registerNow() {
         val current = _ui.value
-        val lic = current.pending ?: return
-        if (!current.canRegister || current.loading) return
-        _ui.update { it.copy(loading = true, error = null) }
-        viewModelScope.launch {
-            when (val r = register(lic)) {
-                is Outcome.Ok -> _ui.update {
-                    it.copy(
-                        loading = false,
-                        success = "Registrada.",
-                        canRegister = false,
-                        pending = null,
-                        shareLaunched = false,
-                    )
-                }
-                is Outcome.Err -> _ui.update { it.copy(loading = false, error = r.error.userMessage) }
-            }
-        }
+        if (!current.canRegister || current.pending == null || current.loading) return
+        // La emisión ya está registrada antes del primer envío; no sobrescribir su estado.
+        _ui.update { it.copy(success = "Registrada.", canRegister = false, pending = null, shareLaunched = false) }
     }
 }

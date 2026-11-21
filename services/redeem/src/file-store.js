@@ -98,9 +98,9 @@ export class JsonFileStore extends MemoryStore {
     return pending;
   }
 
-  async claim(row) {
+  async claim(row, days) {
     await this.load();
-    const result = await super.claim(row);
+    const result = await super.claim(row, days);
     if (result.ok) await this.persist();
     return result;
   }
@@ -119,9 +119,9 @@ export class JsonFileStore extends MemoryStore {
     return row;
   }
 
-  async revokeCode(codeHash) {
+  async revokeCodeCascade(codeHash, licenseId) {
     await this.load();
-    const code = await super.revokeCode(codeHash);
+    const code = await super.revokeCodeCascade(codeHash, licenseId);
     if (code) await this.persist();
     return code;
   }

@@ -138,3 +138,19 @@ test("canje HTTP real de extremo a extremo", async () => {
   const result = await client.activate(code);
   assert.equal(result.license.status, "ACTIVA");
 });
+
+test('hora UTC sin caché, CLOCK_SKEW solo para desfase', async () => {
+  const env=await makeEnvironment();
+  const response=await env.serviceFetch('https://test/v1/time');
+  const now=new Date(env.nowRef.value).toISOString();
+  assert.deepEqual(await response.json(),{v:1,ok:true,now});
+  assert.equal(response.headers.get('cache-control'),'no-store');
+  for(const offset of [-600000,600000,NaN]) {
+    const body={v:1,appId:'DSHALEV',requestId:crypto.randomUUID(),nonce:'A'.repeat(24),deviceKey:'dummy',proof:'dummy',requestedAt:offset ? new Date(env.nowRef.value+offset).toISOString() : 'invalid'};
+    const r=await env.serviceFetch('https://test/v1/status',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+    const {error}=await r.json();
+    assert.equal(r.status,400);
+    assert.equal(error.code,offset?'CLOCK_SKEW':'INVALID_REQUEST');
+    assert.equal(error.serverTime,offset?now:undefined);
+  }
+});

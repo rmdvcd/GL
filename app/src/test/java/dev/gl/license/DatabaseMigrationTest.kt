@@ -261,6 +261,21 @@ class DatabaseMigrationTest {
         helper.close()
     }
 
+    @Test fun v7SiembraReservasSinPerderLicencias() {
+        openV5().use { helper ->
+            val db = helper.writableDatabase
+            db.execSQL(INSERT_LICENSE_V5)
+            GlMigrations.M_5_6.migrate(db)
+            db.execSQL("UPDATE licenses SET txNumber='  TX 123 '")
+            GlMigrations.MIGRATION_6_7.migrate(db)
+            db.query("SELECT txKey, licenseId FROM tx_reservations").use {
+                assertThat(it.moveToFirst()).isTrue()
+                assertThat(it.getString(0)).isEqualTo("tx123")
+                assertThat(it.getString(1)).isEqualTo("w")
+            }
+        }
+    }
+
     private fun openV4(): SupportSQLiteOpenHelper =
         FrameworkSQLiteOpenHelperFactory().create(
             SupportSQLiteOpenHelper.Configuration.builder(

@@ -106,11 +106,25 @@ export class MemoryStore {
     return pending;
   }
 
-  async claim(row) {
-    const requestRow = await this.getByRequest(row.requestId);
+  async claim(row, days) {
+    const requestRow = this.redemptions.get(this.byRequest.get(row.requestId));
     if (requestRow) return { ok: false, reason: "request-exists", existing: requestRow };
-    const active = await this.getActiveByCode(row.codeHash);
+    const active = this.redemptions.get(this.byCodeActive.get(row.codeHash));
     if (active) return { ok: false, reason: "code-active", existing: active };
+    const pending = this.pendingTransfers.get(row.codeHash);
+    if (this.codes.get(row.codeHash)?.state !== "UNUSED" ||
+        (row.transferredFrom ? pending?.fromLicenseId !== row.transferredFrom || pending?.toThumbprint !== row.deviceThumbprint : this.latestByCode.has(row.codeHash))) {
+      return {ok:false, reason:"unavailable"};
+    }
+    if (days) {
+      let base = Date.parse(row.issuedAt);
+      for (const prior of this.redemptions.values()) {
+        if (prior.active && prior.appId === row.appId && prior.deviceThumbprint === row.deviceThumbprint && prior.expiresAt) {
+          base = Math.max(base, Date.parse(prior.expiresAt));
+        }
+      }
+      row.expiresAt = new Date(base + days * 86400000).toISOString();
+    }
     this.redemptions.set(row.licenseId, row);
     this.byRequest.set(row.requestId, row.licenseId);
     this.byCodeActive.set(row.codeHash, row.licenseId);
@@ -138,17 +152,31 @@ export class MemoryStore {
    * thumbprint de destino, cualquiera con el codigo podria quedarse la licencia
    * durante la ventana entre la autorizacion y el canje.
    */
+  revokeMatching(matches) {
+    const affected = [];
+    for (const row of this.redemptions.values()) {
+      if (!row.active || !matches(row)) continue;
+      row.active = false;
+      row.status = "REVOCADA";
+      this.byCodeActive.delete(row.codeHash);
+      this.pendingTransfers.delete(row.codeHash);
+      affected.push(row.licenseId);
+    }
+    return affected;
+  }
+
+  absorbed(row, anchor) {
+    return anchor && row.appId === anchor.appId && row.deviceThumbprint === anchor.deviceThumbprint &&
+      row.expiresAt && anchor.expiresAt && row.expiresAt <= anchor.expiresAt;
+  }
+
   async deactivateForTransfer(licenseId, toThumbprint) {
     const row = this.redemptions.get(licenseId);
     if (!row || row.status === "REVOCADA" || row.active === false) return null;
     if (typeof toThumbprint !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(toThumbprint)) {
       return null;
     }
-    row.active = false;
-    row.status = "REVOCADA";
-    if (this.byCodeActive.get(row.codeHash) === licenseId) {
-      this.byCodeActive.delete(row.codeHash);
-    }
+    this.revokeMatching(other => other === row || this.absorbed(other, row));
     this.pendingTransfers.set(row.codeHash, {
       codeHash: row.codeHash,
       fromLicenseId: licenseId,
@@ -158,12 +186,14 @@ export class MemoryStore {
     return row;
   }
 
-  async revokeCode(codeHash) {
+  async revokeCodeCascade(codeHash, licenseId = null) {
     const code = this.codes.get(codeHash);
-    if (!code) return null;
+    if (!code) return [];
+    const anchor = this.redemptions.get(licenseId);
+    const affected = this.revokeMatching(row => row.codeHash === codeHash || this.absorbed(row, anchor));
     code.state = "REVOKED";
     this.pendingTransfers.delete(codeHash);
-    return code;
+    return affected;
   }
 
   async incrementCounter(key, windowStart) {

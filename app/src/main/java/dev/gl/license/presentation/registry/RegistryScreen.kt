@@ -107,6 +107,11 @@ fun RegistryScreen(
         }
     }
 
+    val exportList = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri != null) scope.launch { vm.exportRevocations { bytes ->
+            requireNotNull(ctx.contentResolver.openOutputStream(uri, "wt")).use { it.write(bytes) }
+        } }
+    }
     val countLabel = when (ui.items.size) {
         0 -> stringResource(R.string.registry_count_empty)
         1 -> stringResource(R.string.registry_count_one)
@@ -142,6 +147,7 @@ fun RegistryScreen(
             )
         }
         Spacer(Modifier.height(8.dp))
+        GlSecondaryButton(text = "Exportar lista de revocadas", onClick = { exportList.launch("revocadas.json") })
         StatusBanner(error = ui.error, success = ui.message)
         Spacer(Modifier.height(8.dp))
 

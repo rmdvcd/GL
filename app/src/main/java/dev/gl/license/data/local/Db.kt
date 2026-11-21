@@ -31,7 +31,17 @@ data class LicenseEntity(
     val nonce: String,
     val version: Int,
     val txNumber: String? = null,
+    @androidx.room.ColumnInfo(defaultValue = "0") val verificacionManual: Boolean = false,
+    @androidx.room.ColumnInfo(defaultValue = "'EMISION'") val origen: String = "EMISION",
 )
+
+@Entity(tableName = "consumed_nonces")
+data class ConsumedNonce(@PrimaryKey val nonce: String, val consumedAtIso: String)
+
+@Entity(tableName = "tx_reservations")
+data class TxReservation(@PrimaryKey val txKey: String, val licenseId: String, val createdAtIso: String)
+
+internal fun txKey(value: String) = value.trim().lowercase().filterNot { it.isWhitespace() }
 
 @Dao
 interface LicenseDao {
@@ -44,11 +54,62 @@ interface LicenseDao {
     @Query("SELECT * FROM licenses WHERE id = :id COLLATE NOCASE LIMIT 1")
     suspend fun byId(id: String): LicenseEntity?
 
-    @Query("SELECT COUNT(*) FROM licenses WHERE txNumber IS NOT NULL AND txNumber != '' AND txNumber COLLATE NOCASE = :txNumber COLLATE NOCASE")
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun consume(nonce: ConsumedNonce): Long
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun reserve(tx: TxReservation): Long
+
+    @Query("DELETE FROM tx_reservations WHERE licenseId = :id")
+    suspend fun release(id: String): Int
+
+    @Query("UPDATE licenses SET status='REVOCADA' WHERE id=:id COLLATE NOCASE AND status NOT IN ('VENCIDA','REVOCADA')")
+    suspend fun revokePrevious(id: String): Int
+
+    @Insert
+    suspend fun insertIssued(entity: LicenseEntity)
+
+    @Query("SELECT EXISTS(SELECT 1 FROM licenses WHERE appName=:app AND deviceId=:device AND issuedAtIso >= :issued)")
+    suspend fun hasLater(app: String, device: String, issued: String): Boolean
+
+    @androidx.room.Transaction
+    suspend fun issue(entity: LicenseEntity, requestNonce: String, previous: String?) {
+        if (consume(ConsumedNonce(requestNonce, entity.issuedAtIso)) == -1L)
+            throw dev.gl.license.core.AppError.SolicitudYaProcesada
+        entity.txNumber?.let {
+            if (reserve(TxReservation(txKey(it), entity.id, entity.issuedAtIso)) == -1L)
+                throw dev.gl.license.core.AppError.TransactionAlreadyUsed(it)
+        }
+        if (entity.version == 2 && hasLater(entity.appName, entity.deviceId, entity.issuedAtIso))
+            throw dev.gl.license.core.AppError.EmisorDesajustado
+        if (previous != null && revokePrevious(previous) != 1) throw dev.gl.license.core.AppError.RecuperacionInvalida
+        insertIssued(entity)
+    }
+
+    @Query("SELECT COUNT(*) FROM tx_reservations WHERE txKey=:txNumber")
     suspend fun countByTxNumber(txNumber: String): Int
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: LicenseEntity)
+
+    /** El importador antiguo también debe conservar las reservas y las revocaciones locales. */
+    @androidx.room.Transaction
+    suspend fun importRows(items: List<LicenseEntity>) {
+        for (incoming in items) {
+            val old = byId(incoming.id)
+            if (old != null && old.issuedAtIso > incoming.issuedAtIso) continue
+            val entity = if (old == null) incoming else incoming.copy(
+                status = if (old.status == "REVOCADA") old.status else incoming.status,
+                precioCobrado = incoming.precioCobrado ?: old.precioCobrado,
+                origen = if (incoming.origen == "EMISION") old.origen else incoming.origen,
+                verificacionManual = incoming.verificacionManual || old.verificacionManual,
+            )
+            if (old == null || old.txNumber != entity.txNumber) entity.txNumber?.let {
+                reserve(TxReservation(txKey(it), entity.id, entity.issuedAtIso))
+            }
+            upsert(entity)
+        }
+    }
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(items: List<LicenseEntity>)
@@ -84,11 +145,12 @@ interface ContactMethodDao {
 }
 
 @Database(
-    entities = [LicenseEntity::class, ContactMethodEntity::class],
-    version = 6,
+    entities = [LicenseEntity::class, ContactMethodEntity::class, ConsumedNonce::class, TxReservation::class, BatchCode::class, SignedBatch::class],
+    version = 7,
     exportSchema = true,
 )
 abstract class GlDatabase : RoomDatabase() {
+    abstract fun batchDao(): BatchDao
     abstract fun licenseDao(): LicenseDao
     abstract fun contactMethodDao(): ContactMethodDao
 }

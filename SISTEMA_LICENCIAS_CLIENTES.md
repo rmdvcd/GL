@@ -1,5 +1,7 @@
 # Guía de Implementación del Sistema de Licencias GL para Clientes
 
+**Flujos:** el canje comercial es la vía principal cuando esté desplegado y configurado; `SPVI2:` sigue siendo el respaldo offline. Véase el [Anexo A: directorio de confianza](docs/DIRECTORIO_V1.md).
+
 Este documento describe en detalle el contrato criptográfico, el formato de datos, las reglas de negocio y la guía de implementación paso a paso para que **cualquier IA o desarrollador** implemente o actualice el sistema de licencias en las aplicaciones cliente que reciben licencias generadas por **GL** (Generador de Licencias).
 
 ---

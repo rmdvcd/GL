@@ -26,7 +26,8 @@ export function createD1Like() {
             async all() {
               return { results: statement.all(...args) };
             },
-            async run() {
+            run() {
+              if (statement.columns().length) return {results: statement.all(...args)};
               const info = statement.run(...args);
               return { success: true, meta: { changes: Number(info.changes) } };
             },
@@ -38,7 +39,7 @@ export function createD1Like() {
       db.exec("BEGIN");
       try {
         const results = [];
-        for (const statement of statements) results.push(await statement.run());
+        for (const statement of statements) results.push(statement.run());
         db.exec("COMMIT");
         return results;
       } catch (error) {
