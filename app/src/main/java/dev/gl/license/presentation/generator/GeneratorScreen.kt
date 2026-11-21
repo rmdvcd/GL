@@ -1,7 +1,7 @@
 package dev.gl.license.presentation.generator
 
-import android.content.Intent
-import android.net.Uri
+import dev.gl.license.presentation.components.directIntent
+import dev.gl.license.presentation.components.MessageActions
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -41,7 +41,6 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -81,18 +80,13 @@ fun GeneratorScreen(
     LaunchedEffect(Unit) {
         vm.share.collectLatest { ev ->
             val intent = when (ev) {
-                is ShareEvent.WhatsApp -> {
-                    val phone = ev.phone.filter { it.isDigit() }
-                    Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$phone?text=${Uri.encode(ev.body)}"))
-                }
-                is ShareEvent.Sms -> Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:${ev.phone}")).apply {
-                    putExtra("sms_body", ev.body)
-                }
+                is ShareEvent.WhatsApp -> directIntent(ev.phone, ev.body, sms = false)
+                is ShareEvent.Sms -> directIntent(ev.phone, ev.body, sms = true)
             }
             try {
-                shareLauncher.launch(intent)
+                if (intent == null) vm.onReturnedFromShare() else shareLauncher.launch(intent)
             } catch (_: Exception) {
-                // Si no hay app de destino, la licencia sigue disponible para registrar.
+                // El cuerpo y el teléfono permanecen en el ViewModel para Copiar/Compartir.
                 vm.onReturnedFromShare()
             }
         }
@@ -265,7 +259,7 @@ fun GeneratorScreen(
         }
 
         AnimatedVisibility(
-            visible = ui.spvi != null && ui.shareBody != null,
+            visible = ui.shareBody != null,
             enter = fadeIn(tween(GlMotion.normal)),
             exit = fadeOut(tween(GlMotion.fast)),
         ) {
@@ -284,10 +278,7 @@ fun GeneratorScreen(
                         label = { Text(stringResource(R.string.generated_message)) },
                     )
                     Spacer(Modifier.height(8.dp))
-                    GlSecondaryButton(
-                        text = stringResource(R.string.copiar_mensaje),
-                        onClick = { ui.shareBody?.let { clip.setText(AnnotatedString(it)) } },
-                    )
+                    ui.shareBody?.let { body -> MessageActions(body, ui.sharePhone) }
                 }
             }
         }

@@ -18,7 +18,7 @@ class LicenseMessageTest {
         )
 
         assertThat(mensaje).isEqualTo(
-            "Licencia SPVI MENSUAL · 2 secundarias · 8 000 CUP\nID: uuid\n{}",
+            "Licencia SPVI MENSUAL - 2 secundarias - 8 000 CUP\nID: uuid\n{}",
         )
     }
 
@@ -34,7 +34,7 @@ class LicenseMessageTest {
         )
 
         assertThat(mensaje).isEqualTo(
-            "Licencia MiApp MENSUAL · 6 000 CUP\nID: uuid\n{}",
+            "Licencia MiApp MENSUAL - 6 000 CUP\nID: uuid\n{}",
         )
     }
 }

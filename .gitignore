@@ -20,3 +20,7 @@
 *.key.enc
 directorio.src.json
 directorio.src.json.lock
+
+/wrangler.production.jsonc
+/services/redeem/wrangler.production.jsonc
+.wrangler/

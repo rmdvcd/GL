@@ -7,6 +7,7 @@ import dev.gl.license.core.AppError
 import dev.gl.license.core.Outcome
 import dev.gl.license.domain.model.Licencia
 import dev.gl.license.domain.model.LicenseMessage
+import dev.gl.license.domain.model.SpviResponseMessage
 import dev.gl.license.domain.model.PrecioTabla
 import dev.gl.license.domain.model.SolicitudLicencia
 import dev.gl.license.domain.model.SolicitudSpviV2
@@ -50,6 +51,7 @@ data class GeneratorUi(
     val diasRemanentes: Long = 0L,
     val encryptedLicense: String? = null,
     val shareBody: String? = null,
+    val sharePhone: String? = null,
     val spvi: SolicitudSpviV2? = null,
     val spviPrecioDesglose: String? = null,
     val renuevaAviso: String? = null,
@@ -140,6 +142,7 @@ class GeneratorViewModel @Inject constructor(
                 shareLaunched = false,
                 encryptedLicense = null,
                 shareBody = null,
+                sharePhone = null,
                 pending = null,
                 clipboardCaptured = false,
             )
@@ -368,6 +371,7 @@ class GeneratorViewModel @Inject constructor(
                                 it.copy(
                                     encryptedLicense = lic.codigoCorto,
                                     shareBody = emitida.mensaje,
+                                    sharePhone = spvi.telefono,
                                     pending = lic,
                                     renuevaAviso = if (emitida.renuevaIgnorada) {
                                         "Renovación no aplicada: se emitió como licencia nueva."
@@ -418,6 +422,7 @@ class GeneratorViewModel @Inject constructor(
                                 it.copy(
                                     encryptedLicense = enc,
                                     shareBody = body,
+                                    sharePhone = req.effectivePhone,
                                     pending = lic,
                                     success = "Licencia generada: ${lic.codigoCorto ?: lic.id}",
                                     shareLaunched = true,
@@ -468,12 +473,11 @@ class GeneratorViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val lic = emitirSpvi.registrada(id.trim())
-                val code = lic?.codigoCorto
-                if (lic == null || lic.version != 2 || code == null || lic.status == dev.gl.license.domain.model.EstadoLicencia.REVOCADA) {
-                    _ui.update { it.copy(error = "No hay una emisión SPVI reenviable con ese ID.") }; return@launch
+                val body = lic?.let(SpviResponseMessage::fromRecord)
+                if (lic == null || body == null) {
+                    _ui.update { it.copy(error = "No hay una emisión SPVI reenviable con ese ID.", shareBody = null, sharePhone = null) }; return@launch
                 }
-                val body = dev.gl.license.domain.model.SpviResponseMessage.build(lic.type, lic.secundarias ?: 0,
-                    java.time.Instant.parse(lic.issuedAtIso).epochSecond, lic.expiresAtIso?.let { java.time.Instant.parse(it).epochSecond }, lic.id, code)
+                _ui.update { it.copy(shareBody = body, sharePhone = lic.phone, error = null) }
                 _share.emit(if (lic.channel == ViaSolicitud.SMS) ShareEvent.Sms(lic.phone, body) else ShareEvent.WhatsApp(lic.phone, body))
             } catch (e: kotlinx.coroutines.CancellationException) { throw e }
             catch (_: Exception) { _ui.update { it.copy(error = AppError.RegistryFailure.userMessage) } }

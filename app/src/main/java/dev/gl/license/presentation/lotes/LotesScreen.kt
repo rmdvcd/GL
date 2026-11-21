@@ -1,9 +1,12 @@
 package dev.gl.license.presentation.lotes
 
-import android.content.*
-import android.os.*
+import dev.gl.license.presentation.components.MessageActions
+import dev.gl.license.presentation.components.copySensitiveText
+import dev.gl.license.presentation.components.clipboardNotice
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.material3.*
@@ -48,7 +51,7 @@ fun LotesScreen(vm: LotesViewModel = hiltViewModel()) {
             onDismissRequest = { confirmarCopia = null },
             title = { Text("¿Volver a copiar un código entregado?") },
             text = { Text("Código terminado en ${fila.code.takeLast(4)}. Entrega registrada: ${fila.nota}. Comprueba el destinatario antes de reenviarlo.") },
-            confirmButton = { TextButton(onClick = { copyCode(ctx, fila.code); confirmarCopia = null }) { Text("Volver a copiar") } },
+            confirmButton = { TextButton(onClick = { copySensitiveText(ctx, fila.code); confirmarCopia = null }) { Text("Volver a copiar") } },
             dismissButton = { TextButton(onClick = { confirmarCopia = null }) { Text("Cancelar") } },
         )
     }
@@ -88,7 +91,7 @@ fun LotesScreen(vm: LotesViewModel = hiltViewModel()) {
         }
         if(vm.selected.isNotEmpty()) item {
             Button(onClick={exportId=vm.selected;export.launch("lote-${vm.selected}.json")}){Text("Exportar lote firmado")}
-            Text("Al copiar se intentará borrar el código del portapapeles a los 60 s. Si la app está cerrada o en segundo plano, bórralo manualmente.")
+            Text(clipboardNotice)
         }
         if (vm.selected.isNotEmpty()) item {
             val libres = inventory.count { it.estado == "LIBRE" }
@@ -103,10 +106,33 @@ fun LotesScreen(vm: LotesViewModel = hiltViewModel()) {
             var note by remember(row.codeHash){ mutableStateOf("") }
             Text("•••• ${row.code.takeLast(4)} · ${row.estado}")
             TextButton(onClick = {
-                if (row.estado == "LIBRE") copyCode(ctx, row.code) else confirmarCopia = row.codeHash
+                if (row.estado == "LIBRE") copySensitiveText(ctx, row.code) else confirmarCopia = row.codeHash
             }) { Text(if (row.estado == "LIBRE") "Copiar código" else "Volver a copiar código") }
             if(row.estado=="LIBRE") {
-                OutlinedTextField(note,{note=it.take(160)},label={Text("Nombre o nº de transacción")})
+                var mostrar by remember { mutableStateOf(false) }
+                TextButton(onClick = { mostrar = true }) { Text("Mensaje para el cliente") }
+                if (mostrar) {
+                    val mensaje by produceState<String?>(null, row.batchId, row.codeHash) {
+                        value = vm.customerMessage(row.batchId, row.code)
+                            ?: ""
+                    }
+                    AlertDialog(onDismissRequest = { mostrar = false },
+                        title = { Text("Mensaje para el cliente") },
+                        text = { Column(Modifier.verticalScroll(rememberScrollState())) {
+                            val body = mensaje
+                            when {
+                                body == null -> Text("Cargando mensaje…")
+                                body.isEmpty() -> Text("No se pudo leer el código del lote.")
+                                else -> {
+                                    Text(body)
+                                    MessageActions(body)
+                                    Text("Tras comprobar el envío, registra la entrega manualmente.")
+                                }
+                            }
+                        } },
+                        confirmButton = { TextButton(onClick = { mostrar = false }) { Text("Volver a entrega") } })
+                }
+                OutlinedTextField(note,{note=it.take(160)},label={Text("Nombre y nº de transferencia")})
                 TextButton(onClick={vm.deliver(row.codeHash,note)},enabled=note.isNotBlank()){Text("Marcar entregado")}
             } else Text(row.nota)
         }
@@ -117,16 +143,4 @@ fun LotesScreen(vm: LotesViewModel = hiltViewModel()) {
     Box { TextButton(onClick={expanded=true}) { Text("$label: $value") }; DropdownMenu(expanded,{expanded=false}) {
         options.forEach { DropdownMenuItem(text={Text(it)},onClick={expanded=false;choose(it)}) }
     } }
-}
-private fun copyCode(context:Context,code:String) {
-    val cm=context.applicationContext.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-    val label="GL-"+java.util.UUID.randomUUID()
-    val clip=ClipData.newPlainText(label,code)
-    clip.description.extras=PersistableBundle().apply { putBoolean("android.content.extra.IS_SENSITIVE",true) }
-    cm.setPrimaryClip(clip)
-    Handler(Looper.getMainLooper()).postDelayed({
-        try { if(cm.primaryClipDescription?.label==label) {
-            if(Build.VERSION.SDK_INT>=28) cm.clearPrimaryClip() else cm.setPrimaryClip(ClipData.newPlainText("",""))
-        } } catch (_: SecurityException) { /* Android puede impedir leer fuera de primer plano. */ }
-    },60000L)
 }

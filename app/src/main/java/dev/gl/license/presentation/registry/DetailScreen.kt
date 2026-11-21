@@ -37,6 +37,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.gl.license.R
+import dev.gl.license.domain.model.SpviResponseMessage
+import dev.gl.license.presentation.components.MessageActions
 import dev.gl.license.domain.model.Licencia
 import dev.gl.license.domain.model.PrecioTabla
 import dev.gl.license.domain.repository.LicenciaRepository
@@ -122,6 +124,10 @@ fun DetailScreen(
                 )
                 else -> {
                     LicenseDetail(item)
+                    androidx.compose.runtime.remember(item) { SpviResponseMessage.fromRecord(item) }?.let { body ->
+                        SectionLabel("Reenviar al solicitante")
+                        MessageActions(body, item.phone)
+                    }
                     if (item.txNumber != null) {
                         val confirm = androidx.compose.runtime.remember { mutableStateOf(false) }
                         androidx.compose.material3.TextButton(onClick = { confirm.value = true }) { Text("Liberar reserva") }
