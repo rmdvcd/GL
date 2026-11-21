@@ -262,6 +262,7 @@ export class D1Store extends MemoryStore {
   }
 
   async incrementCounter(key, windowStart) {
+    if (Math.random() < 0.01) await this.db.prepare("DELETE FROM counters WHERE window_start < ?").bind(windowStart - 86400000).run();
     await this.db
       .prepare(
         `INSERT INTO counters (key, window_start, count) VALUES (?, ?, 1)

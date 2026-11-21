@@ -40,3 +40,13 @@ test("el limitador no guarda la IP ni el thumbprint en claro", async () => {
   const keys = [...env.store.counters.keys()].join(" ");
   assert.ok(!keys.includes(client.deviceThumbprint));
 });
+
+import { BindingRateLimiter } from '../src/rate-limit.js';
+test('binding nativo: éxito, rechazo y fallo cerrado', async () => {
+  assert.throws(()=>new BindingRateLimiter({},'RL_IP'), /missing-binding:RL_IP/);
+  for (const success of [true,false]) {
+    const limiter = new BindingRateLimiter({RL_IP:{limit:async ({key})=>({success:key==='hash' && success})}},'RL_IP');
+    assert.equal(await limiter.check('hash'),success);
+  }
+  assert.equal(await new BindingRateLimiter({RL_IP:{limit(){throw Error()}}},'RL_IP').check('hash'),false);
+});

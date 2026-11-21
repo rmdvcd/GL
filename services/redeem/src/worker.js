@@ -7,19 +7,14 @@
 
 import { buildServiceFromEnv } from "./config.js";
 import { createHandler } from "./http.js";
-import { StoreRateLimiter } from "./rate-limit.js";
+import { BindingRateLimiter } from "./rate-limit.js";
 
-let cached = null;
-let cachedEnvKey = null;
+let handlerPromise;
 
-async function getHandler(env) {
-  if (cached && cachedEnvKey === env) return cached;
-  const { service, store, pepper, logger } = await buildServiceFromEnv(env);
-  const httpRateLimiter = new StoreRateLimiter({
-    store,
-    limit: Number(env.HTTP_RATE_LIMIT_MAX ?? 120),
-    windowMs: Number(env.HTTP_RATE_LIMIT_WINDOW_MS ?? 60_000),
-  });
+async function buildHandler(env) {
+  const httpRateLimiter = new BindingRateLimiter(env, "RL_IP");
+  if (!env.DB) throw new Error("missing-binding:DB");
+  const { service, pepper, logger } = await buildServiceFromEnv(env);
   const handle = createHandler({
     service,
     logger,
@@ -27,9 +22,14 @@ async function getHandler(env) {
     httpRateLimiter,
     allowOrigin: env.ALLOWED_ORIGIN ?? null,
   });
-  cached = handle;
-  cachedEnvKey = env;
   return handle;
+}
+
+function getHandler(env) {
+  return handlerPromise ??= buildHandler(env).catch(error => {
+    handlerPromise = undefined;
+    throw error;
+  });
 }
 
 export default {
