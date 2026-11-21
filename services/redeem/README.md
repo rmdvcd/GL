@@ -365,3 +365,5 @@ peticiones, licencia, estado y sub-token firmados, SPKI públicas y bytes canón
 No incluye claves privadas ni representa claves de producción. El test
 `test/dshalev-vector.test.js` comprueba que el contrato siga coincidiendo.
 El prompt para la implementación Python está en `docs/PROMPT_DSHALEV.md`.
+
+Tras transferir un rollover, restaura con el código más reciente: los períodos anteriores quedan absorbidos y revocados en la instalación de origen.

@@ -371,7 +371,7 @@ export class RedeemService {
     }
     const row = await this.store.getByLicenseId(licenseId);
     if (!row) throw new ApiError("LICENSE_NOT_FOUND");
-    const affected = await this.store.revokeCodeCascade(row.codeHash);
+    const affected = await this.store.revokeCodeCascade(row.codeHash, licenseId);
     this.log("license_revoked", { appId: row.appId });
     return { licenseId, status: "REVOCADA", affected };
   }

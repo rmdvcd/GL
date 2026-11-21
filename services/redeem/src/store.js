@@ -138,17 +138,31 @@ export class MemoryStore {
    * thumbprint de destino, cualquiera con el codigo podria quedarse la licencia
    * durante la ventana entre la autorizacion y el canje.
    */
+  revokeMatching(matches) {
+    const affected = [];
+    for (const row of this.redemptions.values()) {
+      if (!row.active || !matches(row)) continue;
+      row.active = false;
+      row.status = "REVOCADA";
+      this.byCodeActive.delete(row.codeHash);
+      this.pendingTransfers.delete(row.codeHash);
+      affected.push(row.licenseId);
+    }
+    return affected;
+  }
+
+  absorbed(row, anchor) {
+    return anchor && row.appId === anchor.appId && row.deviceThumbprint === anchor.deviceThumbprint &&
+      row.expiresAt && anchor.expiresAt && row.expiresAt <= anchor.expiresAt;
+  }
+
   async deactivateForTransfer(licenseId, toThumbprint) {
     const row = this.redemptions.get(licenseId);
     if (!row || row.status === "REVOCADA" || row.active === false) return null;
     if (typeof toThumbprint !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(toThumbprint)) {
       return null;
     }
-    row.active = false;
-    row.status = "REVOCADA";
-    if (this.byCodeActive.get(row.codeHash) === licenseId) {
-      this.byCodeActive.delete(row.codeHash);
-    }
+    this.revokeMatching(other => other === row || this.absorbed(other, row));
     this.pendingTransfers.set(row.codeHash, {
       codeHash: row.codeHash,
       fromLicenseId: licenseId,
@@ -158,17 +172,14 @@ export class MemoryStore {
     return row;
   }
 
-  async revokeCodeCascade(codeHash) {
+  async revokeCodeCascade(codeHash, licenseId = null) {
     const code = this.codes.get(codeHash);
     if (!code) return [];
-    const id = this.byCodeActive.get(codeHash);
-    if (id) {
-      Object.assign(this.redemptions.get(id), {active:false, status:"REVOCADA"});
-      this.byCodeActive.delete(codeHash);
-    }
+    const anchor = this.redemptions.get(licenseId);
+    const affected = this.revokeMatching(row => row.codeHash === codeHash || this.absorbed(row, anchor));
     code.state = "REVOKED";
     this.pendingTransfers.delete(codeHash);
-    return id ? [id] : [];
+    return affected;
   }
 
   async incrementCounter(key, windowStart) {

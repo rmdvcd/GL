@@ -7,6 +7,7 @@
  * No se ha ejecutado contra un D1 real en este entorno; ver README.
  */
 
+import { absorbedBy } from "./cascade.js";
 import { MemoryStore } from "./store.js";
 
 const COLUMNS = `license_id, redemption_id, request_id, code_hash, app_id, type,
@@ -231,8 +232,8 @@ export class D1Store extends MemoryStore {
     const createdAt = new Date().toISOString();
     await this.db.batch([
       this.db
-        .prepare("UPDATE redemptions SET status = 'REVOCADA', active = 0 WHERE license_id = ?")
-        .bind(licenseId),
+        .prepare(`UPDATE redemptions SET status = 'REVOCADA', active = 0 WHERE active=1 AND (license_id = ? OR ${absorbedBy('?')})`)
+        .bind(licenseId, licenseId),
       this.db
         .prepare(
           `INSERT INTO transfers (code_hash, from_license_id, to_thumbprint, created_at)
@@ -247,10 +248,11 @@ export class D1Store extends MemoryStore {
     return { ...row, active: false, status: "REVOCADA" };
   }
 
-  async revokeCodeCascade(codeHash) {
+  async revokeCodeCascade(codeHash, licenseId = null) {
+    const where = `active=1 AND (code_hash=? OR ${absorbedBy("?")})`;
     const [affected] = await this.db.batch([
-      this.db.prepare("SELECT license_id FROM redemptions WHERE active = 1 AND code_hash = ?").bind(codeHash),
-      this.db.prepare("UPDATE redemptions SET status = 'REVOCADA', active = 0 WHERE active = 1 AND code_hash = ?").bind(codeHash),
+      this.db.prepare(`SELECT license_id FROM redemptions WHERE ${where}`).bind(codeHash, licenseId),
+      this.db.prepare(`UPDATE redemptions SET status = 'REVOCADA', active = 0 WHERE ${where}`).bind(codeHash, licenseId),
       this.db.prepare("UPDATE codes SET state = 'REVOKED' WHERE code_hash = ?").bind(codeHash),
       this.db.prepare("DELETE FROM transfers WHERE code_hash = ?").bind(codeHash),
     ]);

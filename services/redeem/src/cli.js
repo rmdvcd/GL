@@ -6,6 +6,7 @@
  * lotes se escriben con permisos 0600 y estan ignorados por git.
  */
 
+import { absorbedBy } from "./cascade.js";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { parseArgs } from "node:util";
@@ -247,7 +248,7 @@ async function commandSqlStatus(values, mode) {
     `BEGIN;\n` +
     (mode === "revoke"
       ? `UPDATE redemptions SET status = 'REVOCADA', active = 0 ` +
-        `WHERE license_id = ${license} AND active = 1;\n` +
+        `WHERE (license_id = ${license} OR ${absorbedBy(license)}) AND active = 1;\n` +
         `UPDATE codes SET state = 'REVOKED' WHERE code_hash = ` +
         `(SELECT code_hash FROM redemptions WHERE license_id = ${license});\n` +
         `DELETE FROM transfers WHERE code_hash = ` +
@@ -264,7 +265,7 @@ async function commandSqlStatus(values, mode) {
         `    to_thumbprint = excluded.to_thumbprint\n` +
         `  WHERE transfers.from_license_id = excluded.from_license_id;\n` +
         `UPDATE redemptions SET status = 'REVOCADA', active = 0 ` +
-        `WHERE license_id = ${license} AND active = 1;\n` +
+        `WHERE (license_id = ${license} OR ${absorbedBy(license)}) AND active = 1;\n` +
         `-- solo la instalacion indicada puede canjear; hereda el vencimiento restante\n`) +
     `COMMIT;\n`;
   await writeOut(values.out, sql, 0o600);
