@@ -4,17 +4,22 @@ Generador de licencias Android offline. Kotlin + Compose + Hilt + Room/SQLCipher
 
 ## Entorno de build
 
-El repo **no tiene `gradlew` ni `gradle-wrapper.jar`**, solo `gradle/wrapper/gradle-wrapper.properties`. La compilación requiere JDK 17, Gradle 8.9 y Android SDK (compile/target API 35).
+El repo **no tiene `gradlew` ni `gradle-wrapper.jar`**, solo `gradle/wrapper/gradle-wrapper.properties` (que pide Gradle 8.9). La compilación requiere JDK 17, Gradle ≥8.9 (AGP 8.7.2) y Android SDK (compile/target API 35).
 
-Receta verificada en esta máquina (Windows, sin `gradle` en el PATH):
+**Gradle 8.9 no está instalada en esta máquina.** Las distribuciones presentes son 8.11.1, 8.14.3, 9.1.0, 9.4.1 y 9.5.0; se usa la **8.11.1**, que cumple el mínimo de AGP 8.7.2 y compila sin tocar el proyecto. La ruta lleva un hash que puede cambiar, así que se resuelve con `Get-ChildItem` en vez de fijarla:
 
 ```powershell
 $env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
 $env:JAVA_HOME = "C:\Users\666\.gradle\jdks\jdk17"
-& "C:\Users\666\.gradle\wrapper\dists\gradle-8.9-bin\90cnw93cvbtalezasaz0blq0a\gradle-8.9\bin\gradle.bat" :app:assembleDebug --console=plain
+$gradle = Get-ChildItem "$env:USERPROFILE\.gradle\wrapper\dists\gradle-8.11.1-bin" -Recurse -Filter gradle.bat | Select-Object -First 1 -ExpandProperty FullName
+& $gradle :app:assembleDebug --console=plain
 ```
 
-El `java` del PATH es JDK 25 y **Gradle 8.9 no lo acepta**; usa el 17 de `~/.gradle/jdks/jdk17`. Alternativa al env var: `local.properties` con `sdk.dir` (ignorado por Git).
+Verificado 2026-11-21: `BUILD SUCCESSFUL in 9m 8s`, APK instalado y app arrancada sin crash.
+
+El `java` del PATH es JDK 25 y **Gradle 8.x no lo acepta**; usa el 17 de `~/.gradle/jdks/jdk17`. Alternativa al env var: `local.properties` con `sdk.dir` (ignorado por Git).
+
+La ruta fija antigua (`gradle-8.9-bin\90cnw93…`) ya no existe; si algún día se regenera el wrapper, `gradle-wrapper.properties` bajará la 8.9 real.
 
 ## Comandos
 
