@@ -78,6 +78,8 @@ El Registro guarda el código SPVI2 y permite reconstruir su mensaje sin emitir 
 
 ### G4 — política de frescura y decisión del propietario
 
+> **Superado por G6 (2026-11-20):** la ventana ya es de 7 días. Lo que sigue describe el estado de aquel PR (72 h) y se conserva como historial.
+
 Los validadores v1 y SPVIR1 ya delegaban en `RequestFreshness`. Ahora un único intervalo inclusivo alimenta la validación y el aviso de error: se aceptan desde 72 horas antes hasta 2 horas después de la hora del emisor. No es la tolerancia del Worker de canje. Una prueba JVM fija los extremos y los instantes un nanosegundo fuera del intervalo.
 
 Ampliar la antigüedad, por ejemplo a siete días, permitiría presentar más tarde una **solicitud aún no utilizada**. No reabre por sí mismo la repetición de una solicitud ya emitida: la reserva atómica consume su nonce al emitir, siempre que se conserve ese registro. Requiere decisión del propietario y actualizar «Vale 72 horas» en los clientes Shalev antes del cambio. Esta entrega **no amplía** la ventana.
