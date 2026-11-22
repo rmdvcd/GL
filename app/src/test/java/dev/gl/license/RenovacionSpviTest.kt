@@ -158,8 +158,22 @@ class RenovacionSpviTest {
     }
 
     @Test
+    fun aceptaSolicitudSpviDeSeisDiasYMedio() = runTest {
+        val r = emitir(sol().copy(solicitadaEn = "2025-12-25T12:00:00Z"))
+
+        assertThat(r).isInstanceOf(Outcome.Ok::class.java)
+    }
+
+    @Test
+    fun rechazaSolicitudSpviJustoFueraDeLosSieteDias() = runTest {
+        val r = emitir(sol().copy(solicitadaEn = "2025-12-24T23:59:59Z"))
+
+        assertThat((r as Outcome.Err).error).isEqualTo(AppError.RequestExpired)
+    }
+
+    @Test
     fun rechazaSolicitudSpviCaducadaOFutura() = runTest {
-        val caducada = emitir(sol().copy(solicitadaEn = "2025-12-28T00:00:00Z")) as Outcome.Err
+        val caducada = emitir(sol().copy(solicitadaEn = "2025-12-24T00:00:00Z")) as Outcome.Err
         val futura = emitir(sol().copy(solicitadaEn = "2026-01-01T03:00:01Z")) as Outcome.Err
 
         assertThat(caducada.error).isEqualTo(AppError.RequestExpired)
@@ -174,6 +188,15 @@ class RenovacionSpviTest {
         val result = emitir(sol(), licencias, txNumber = "tx-used") as Outcome.Err
 
         assertThat(result.error).isEqualTo(AppError.TransactionAlreadyUsed("tx-used"))
+    }
+
+    @Test
+    fun laTransferenciaDeclaradaSoloPrecargaYNoCambiaLaEmision() = runTest {
+        // El caso de uso recibe el txNumber que confirma el operador, no el del DTO.
+        val declarada = sol().copy(tx = "TX-DECLARADA")
+
+        val r = emitir(declarada, MemLic(), txNumber = "TX-CONFIRMADA") as Outcome.Ok
+        assertThat(r.value.licencia.txNumber).isEqualTo("TX-CONFIRMADA")
     }
 
     @Test

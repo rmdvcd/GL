@@ -1,5 +1,8 @@
 package dev.gl.license.presentation.generator
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -43,6 +46,8 @@ data class GeneratorUi(
     val solicitud: SolicitudLicencia? = null,
     val txCliente: String = "",
     val txSms: String = "",
+    /** Nº de transferencia que declaró el cliente en la solicitud SPVIR1, ya validado (o null). */
+    val declaredTx: String? = null,
     val paid: Boolean = false,
     val loading: Boolean = false,
     val error: String? = null,
@@ -62,6 +67,10 @@ data class GeneratorUi(
 ) {
     val txMatch: Boolean
         get() = usableTransaction(txCliente) && usableTransaction(txSms) && txCliente.trim() == txSms.trim()
+
+    /** Aviso sobre la transferencia declarada por el cliente, si la trae. */
+    val declaredTxNotice: String?
+        get() = declaredTx?.let { "Transferencia declarada: $it" }
 }
 
 sealed interface ShareEvent {
@@ -77,6 +86,7 @@ class GeneratorViewModel @Inject constructor(
     private val abrirSpvi: SpviPuerta,
     private val emitirSpvi: EmitirSpvi2UseCase,
     private val evaluarHistorial: EvaluarSolicitudHistorialUseCase,
+    private val licencias: LicenciaRepository,
 ) : ViewModel() {
 
     // Constructor secundario para compatibilidad con tests unitarios
@@ -86,6 +96,7 @@ class GeneratorViewModel @Inject constructor(
         register: RegistrarLicenciaUseCase,
         abrirSpvi: SpviPuerta,
         emitirSpvi: EmitirSpvi2UseCase,
+        licencias: LicenciaRepository,
     ) : this(
         validate,
         generate,
@@ -105,7 +116,16 @@ class GeneratorViewModel @Inject constructor(
                 override fun nowIso() = java.time.Instant.now().toString()
             }
         ),
+        licencias,
     )
+
+    /** Estado de la transferencia tecleada: null = sin consultar, true = libre, false = ya usada. */
+    var txLibre by mutableStateOf<Boolean?>(null)
+        private set
+    /** ID de la licencia que consumió la transferencia, para mostrarlo al operador. */
+    var txOwner by mutableStateOf<String?>(null)
+        private set
+    private var txCheckJob: Job? = null
 
     private val _ui = MutableStateFlow(GeneratorUi())
     val ui: StateFlow<GeneratorUi> = _ui
@@ -118,6 +138,9 @@ class GeneratorViewModel @Inject constructor(
 
     fun onRawChange(text: String) {
         rawValidationJob?.cancel()
+        txCheckJob?.cancel()
+        txLibre = null
+        txOwner = null
         val validationGeneration = ++rawValidationGeneration
         generationGeneration++
         generationJob?.cancel()
@@ -133,6 +156,7 @@ class GeneratorViewModel @Inject constructor(
                 diasRemanentes = 0L,
                 txCliente = "",
                 txSms = "",
+                declaredTx = null,
                 paid = false,
                 solicitud = null,
                 spvi = null,
@@ -192,10 +216,14 @@ class GeneratorViewModel @Inject constructor(
                                     spvi = sol,
                                     spviPrecioDesglose = precioDesglose,
                                     renuevaAviso = aviso,
+                                    // Precarga editable: el operador puede corregirla y la que vale es la confirmada.
+                                    txCliente = sol.tx.orEmpty(),
+                                    declaredTx = sol.tx,
                                     paid = sol.recupera != null,
                                     error = null,
                                 )
                             }
+                            sol.tx?.let { consultarTransferencia(it) }
                         }
                     }
                     is Outcome.Err -> if (validationGeneration == rawValidationGeneration) {
@@ -300,6 +328,31 @@ class GeneratorViewModel @Inject constructor(
         _ui.update { it.copy(clipboardCaptured = true) }
     }
 
+    /**
+     * Consulta la reserva atómica de `tx_reservations` mientras el operador
+     * teclea. Solo informa; la comprobación definitiva la hace la emisión.
+     */
+    fun consultarTransferencia(text: String = _ui.value.txCliente) {
+        txCheckJob?.cancel()
+        val limpio = text.trim()
+        if (limpio.isEmpty()) {
+            txLibre = null
+            txOwner = null
+            return
+        }
+        txCheckJob = viewModelScope.launch {
+            val resultado = try {
+                licencias.transactionOwner(limpio)
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                null
+            }
+            txOwner = resultado
+            txLibre = resultado == null
+        }
+    }
+
     fun onTxClienteChange(text: String) {
         generationGeneration++
         generationJob?.cancel()
@@ -314,6 +367,7 @@ class GeneratorViewModel @Inject constructor(
                 loading = false,
             )
         }
+        consultarTransferencia(safeText)
     }
 
     fun onTxSmsChange(text: String) {

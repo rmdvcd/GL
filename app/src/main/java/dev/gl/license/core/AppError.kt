@@ -15,7 +15,7 @@ sealed class AppError(val userMessage: String) : Exception(userMessage) {
     data object SolicitudYaProcesada : AppError("La solicitud ya fue procesada. Reenvía el mensaje desde el registro.")
     data class TransactionAlreadyUsed(val tx: String) : AppError("El número de transacción $tx ya fue utilizado en una licencia previa.")
     data object DevicePubRequired : AppError("La solicitud debe incluir la clave pública del dispositivo (devicePub).")
-    data object RequestExpired : AppError("La solicitud está fuera del margen permitido (${-RequestFreshness.window.start.toHours()} horas de antigüedad y ${RequestFreshness.window.endInclusive.toHours()} horas de desfase futuro como máximo).")
+    data object RequestExpired : AppError("La solicitud está fuera del margen permitido (${RequestFreshness.maxAge.toHours()} horas de antigüedad y ${RequestFreshness.maxFutureSkew.toHours()} horas de desfase futuro como máximo).")
     data object EmisorDesajustado : AppError("Reloj del emisor desajustado: revisa la fecha antes de emitir.")
     data object ClockFailure : AppError("No se pudo comprobar la hora actual para validar la solicitud.")
     data object AmpliacionInvalida : AppError("La ampliación requiere una licencia vigente del mismo dispositivo y tipo en el registro, con más secundarias (máx. 10).")

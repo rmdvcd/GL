@@ -245,6 +245,9 @@ fun GeneratorScreen(
                         txCliente = ui.txCliente,
                         txSms = ui.txSms,
                         txMatch = ui.txMatch,
+                        declaredTx = ui.declaredTx,
+                        txFree = vm.txLibre,
+                        txOwner = vm.txOwner,
                         isRecovery = ui.spvi?.recupera != null,
                         onTxClienteChange = vm::onTxClienteChange,
                         onTxSmsChange = vm::onTxSmsChange,
@@ -395,6 +398,9 @@ private fun PaymentAndActions(
     txCliente: String,
     txSms: String,
     txMatch: Boolean,
+    declaredTx: String? = null,
+    txFree: Boolean? = null,
+    txOwner: String? = null,
     onTxClienteChange: (String) -> Unit,
     onTxSmsChange: (String) -> Unit,
     hasEncryptedLicense: Boolean,
@@ -428,6 +434,17 @@ private fun PaymentAndActions(
             )
             Spacer(Modifier.height(12.dp))
 
+            if (declaredTx != null) {
+                Text(
+                    text = stringResource(R.string.tx_declared, declaredTx),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(4.dp))
+            }
+
             // Input 1 (arriba): No. transacción enviado por el cliente
             OutlinedTextField(
                 value = txCliente,
@@ -437,6 +454,20 @@ private fun PaymentAndActions(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
+            when {
+                txFree == true -> Text(
+                    text = stringResource(R.string.tx_free),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                txFree == false && txOwner != null -> Text(
+                    text = stringResource(R.string.tx_used, txOwner),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
             Spacer(Modifier.height(8.dp))
 
             // Input 2 (abajo): No. transacción extraído de los SMS

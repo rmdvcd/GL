@@ -16,7 +16,7 @@
 
 - El helper de solicitudes v1 usa el mismo IV para HKDF y AES-GCM, exige `devicePub` y valida EC P-256. Se añadió un round-trip JVM. El fixture E2E ahora incluye `devicePub` y transacciones coincidentes, pero continúa ignorado.
 - La clave maestra de desarrollo se eliminó por completo: no hay `MASTER_KEY_CODE`, ni tarjeta en `TrustScreen`, ni `MasterKey`.
-- La frescura v1 y SPVI usa una ventana exacta de hasta 72 horas de antigüedad y 2 horas de adelanto. Un fallo al leer/parsear el reloj ya no se convierte en una omisión de esa validación.
+- La frescura v1 y SPVI usa una ventana exacta de hasta 7 días de antigüedad y 2 horas de adelanto. Un fallo al leer/parsear el reloj ya no se convierte en una omisión de esa validación.
 - SPVI valida la solicitud antes de emitir, limita entrada/código y conserva `txNumber`. La consulta de duplicados es suspendida, case-insensitive y fail-closed; no se hace `runBlocking`.
 - `.glreg` exporta formato local v2 con AAD versionada, limita el paquete a 32 MiB y 10 000 entradas, lee el archivo con límite, comprueba longitudes y bytes sobrantes y conserva `precioCobrado` fuera del JSON de licencia. El importador acepta paquetes v1 antiguos y no borra un precio local existente cuando falta el metadato.
 - Las validaciones asíncronas descartan resultados obsoletos; se bloquean taps de generación/registro duplicados. Los errores de lectura del historial ya no se interpretan como historial vacío.
@@ -25,7 +25,7 @@
 
 ## Riesgos o decisiones aún pendientes
 
-1. **Replay:** el nonce no se consume ni se guarda. La ventana temporal no impide reusar la solicitud dentro de ella; el reloj de pared puede retroceder.
+1. **Replay:** el nonce se consume de forma atómica al emitir y se conserva sin limpieza por antigüedad, así que una solicitud ya emitida no se reutiliza. El reloj de pared puede retroceder y no hay resistencia a rollback de toda la BD.
 2. **Deduplicación de pagos no atómica:** `txNumber` se comprueba contra licencias ya guardadas, pero no hay reserva transaccional ni índice único. El registro ocurre después de compartir la licencia y sigue existiendo una ventana de carrera. La coincidencia de entrada cliente/SMS es manual, no una verificación con una pasarela.
 3. **`devicePub`:** GL cifra hacia la clave pública suministrada, pero no prueba posesión, attestation de hardware ni vínculo con `deviceId`.
 4. **Android 26–30:** la política ECDH de Keystore no tiene una compatibilidad/fallback validado en esta sesión. Mantener `minSdk = 26` hasta decisión y pruebas explícitas.

@@ -99,6 +99,38 @@ Notas:
 
 ---
 
+## 4.1 Autorizar un appId nuevo
+
+`ALLOWED_APPS` es la lista de `appId` que el Worker acepta, tanto al importar un
+lote como al canjear. Un lote acuñado para una app **no** se canjea en otra
+(`CODE_UNAVAILABLE`), aunque el código sea válido. Para añadir una app:
+
+1. Añade el identificador a `vars.ALLOWED_APPS` en `wrangler.jsonc` (separados por coma, sin espacios):
+   ```jsonc
+   "vars": { "ALLOWED_APPS": "DSHALEV,SHALEV-ANDROID,SHALEV-IOS", ... }
+   ```
+   Los identificadores deben cumplir `^[A-Za-z0-9][A-Za-z0-9._-]{1,63}$` y coincidir **exactamente** con el `appId` que envía el cliente (mayúsculas incluidas). Este cambio **no** requiere tocar `MAX_SECUNDARIAS`, los secretos ni la base de datos.
+2. Despliega el Worker: `npx wrangler deploy`. Es un cambio de configuración, no de esquema.
+3. Comprueba el estado: `curl -fsS https://<tu-worker>/health` debe responder `ok` (o el JSON de salud que ya uses). Si el Worker no arranca, revisa que no falten `RL_IP`/`RL_DEVICE` ni secretos.
+4. Acuña un lote **por app** desde GL (pantalla «Lotes» → Aplicación = la app nueva) y expórtalo. No reutilices un lote de otra app: la firma incluye `appId` y el canje compara contra el `appId` del código.
+5. Impórtalo con el mismo `CODE_PEPPER` de producción:
+   ```bash
+   node src/cli.js sql-import --batch ./lote-shalev-android.json \
+     --public-key "$GL_ISSUER_PUBLIC_KEY" --out ./import.sql
+   npx wrangler d1 execute gl-redeem --remote --file=./import.sql
+   ```
+6. Prueba de humo con la app nueva:
+   ```bash
+   APP_ID=SHALEV-ANDROID node scripts/smoke.mjs "<un código del lote>"
+   # esperado: OK ACTIVA <fecha> restored = false
+   APP_ID=SHALEV-IOS node scripts/smoke.mjs "<el mismo código>"
+   # esperado: CODE_UNAVAILABLE
+   ```
+
+Orden recomendado: primero el APK del operador (GL, para poder acuñar el lote de la app nueva), después publicar el cliente, y solo entonces autorizar el `appId` en el Worker. Así ningún cliente activo envía un `appId` que el Worker todavía rechaza.
+
+---
+
 ## 5. Crear el esquema
 
 ```bash

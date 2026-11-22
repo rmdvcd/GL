@@ -69,6 +69,11 @@ internal class MemLic : LicenciaRepository {
     override suspend fun all() = map.values.toList()
     override suspend fun isTransactionUsed(txNumber: String): Boolean =
         map.values.any { it.txNumber != null && it.txNumber.equals(txNumber.trim(), ignoreCase = true) }
+
+    override suspend fun transactionOwner(txNumber: String): String? =
+        map.values.firstOrNull {
+            it.txNumber != null && it.txNumber.equals(txNumber.trim(), ignoreCase = true)
+        }?.id
 }
 
 internal class MemReg : RegistroRepository {

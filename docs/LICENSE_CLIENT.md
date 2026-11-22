@@ -43,6 +43,8 @@ Cómo cumple la app Android Shalev el contrato v1 del emisor offline **GL** (`CO
 
 Si el Perfil está vacío, el panel pide los datos y los guarda en el Perfil al solicitar.
 
+> **Actualizado (2026-11-20):** la ventana de GL es ahora de **7 días** de antigüedad (2 h de adelanto) y el nonce se consume al emitir. El párrafo siguiente describe el estado de PR #3 y el texto «Vale 72 horas» del cliente; los clientes deben pasar a «Vale 7 días».
+
 **Frescura y límites que GL aplica al emitir (PR #3 de GL, 2026-10-14, commit `005288d`; análisis en
 `docs/ANALISIS_GL_2026-10-15.md`):** la emisión Shalev2 exige `solicitadaEn` con ≤ 72 h de antigüedad y
 ≤ 2 h de adelanto contra el reloj del emisor (comparación exacta; antes el flujo corto no lo aplicaba),

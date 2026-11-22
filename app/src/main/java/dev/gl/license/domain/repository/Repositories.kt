@@ -19,6 +19,13 @@ interface LicenciaRepository {
     /** Implementaciones deben consultar el almacenamiento persistente; fallar debe bloquear emisión. */
     suspend fun isTransactionUsed(txNumber: String): Boolean =
         throw UnsupportedOperationException("transaction-check-not-supported")
+
+    /**
+     * ID de la licencia que reservó ese número de transferencia (clave
+     * normalizada con [dev.gl.license.data.local.txKey]); null si está libre.
+     * Solo para mostrarlo al operador: la reserva atómica la hace [issue].
+     */
+    suspend fun transactionOwner(txNumber: String): String? = null
 }
 
 typealias LicenseRepository = LicenciaRepository
