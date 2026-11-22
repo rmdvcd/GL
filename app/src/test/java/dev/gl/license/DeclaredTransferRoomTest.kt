@@ -59,7 +59,10 @@ class DeclaredTransferRoomTest {
         assertThat(repo.issue(lic("a", " TX-100 "), "nonce-aaaaaaaaaaaaaaaa")).isInstanceOf(Outcome.Ok::class.java)
 
         assertThat(repo.transactionOwner("tx-100")).isEqualTo("a")
-        assertThat(repo.transactionOwner("TX 100".replace(" ", ""))).isEqualTo("a")
+        // La normalización documentada recorta, pasa a minúsculas y quita espacios internos.
+        assertThat(repo.transactionOwner(" TX - 100 ")).isEqualTo("a")
+        // El guion sí forma parte del número: «TX100» es otra transferencia distinta.
+        assertThat(repo.transactionOwner("TX100")).isNull()
 
         // Otra solicitud (aunque venga del cliente con el mismo tx declarado) no puede reservarla.
         val segunda = repo.issue(lic("b", "tx-100"), "nonce-bbbbbbbbbbbbbbbb")
