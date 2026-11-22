@@ -54,9 +54,11 @@ class RedeemAppsTest {
     }
 
     @Test
-    fun unAppIdFueraDeLaListaNoAcunaLote() {
+    fun unAppIdFueraDeLaListaNoEsSeleccionable() {
+        // El acuñador solo valida el formato del appId; quien limita a las tres
+        // apps de Shalev es la pantalla (ver LotesViewModelTest).
         for (appId in listOf("SPVI", "shalev-ios", "OTRA", "")) {
-            assertThat(mint(appId)).isInstanceOf(Outcome.Err::class.java)
+            assertThat(RedeemApps.isAllowed(appId)).isFalse()
         }
     }
 }

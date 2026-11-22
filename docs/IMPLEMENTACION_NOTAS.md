@@ -129,3 +129,60 @@ Estas notas **anulan** lo que el apartado G4 decía sobre «no ampliar la ventan
 - **G6:** `RequestFreshness.maxAge` pasa de 72 h a 7 días (168 h) y `maxFutureSkew` sigue en 2 h. Es la única constante: la usan `FieldValidator` (v1), `EmitirSpvi2UseCase` (SPVIR1 v=2) y el texto de `AppError.RequestExpired`.
 - **Retención de nonces:** no hay ninguna limpieza por antigüedad de `consumed_nonces` ni de `tx_reservations`. No debe añadirse con menos de 14 días. La única liberación existente es manual y por `licenseId` (`releaseReservation`). Una prueba Room comprueba que un nonce consumido sigue rechazando a 7 días menos un segundo y a 14 días.
 - **G7:** `SolicitudSpviV2.tx` es opcional (`String?`, `@SerialName("tx")`). El decodificador tolera claves desconocidas (ya lo hacía: `ignoreUnknownKeys = true`) y clientes antiguos sin el campo. Al descifrar, `Spvi23.declaredTx` recorta espacios y exige `^[A-Za-z0-9-]{4,30}$`; si no cumple, el campo se ignora y **nunca** se rechaza la solicitud. Generator precarga el campo editable, muestra «Transferencia declarada: X» y consulta la reserva (`transactionOwner`) para indicar libre o ya usada con el ID de la licencia. La emisión sigue usando el número que confirma el operador y la misma reserva atómica (`txKey`). Sin migración de Room.
+
+## Cierre G6–G9 (encargo complementario, 2026-11-20)
+
+### Estado por tarea
+
+| Tarea | Estado | Evidencia y límites |
+|---|---|---|
+| **G6** ventana de 7 días | Hecho-verificado (Node) / no ejecutado (Kotlin) | `RequestFreshness.maxAge` = 168 h y `maxFutureSkew` = 2 h, una sola constante para v1 y SPVIR1. Pruebas de frontera escritas: 7 d − 1 s aceptada, 7 d + 1 s rechazada, +2 h + 1 s rechazada. **No ejecutadas** aquí. |
+| **G6** retención de nonces | Hecho-verificado por inspección + prueba escrita | No existe ninguna limpieza de `consumed_nonces` ni `tx_reservations`: la única escritura negativa es `release(licenseId)` (manual, por licencia). Se documenta el mínimo de 14 días. Prueba Room escrita: nonce consumido rechazado a 7 d − 1 s y a 14 d. **No ejecutada**. |
+| **G7** campo opcional `tx` | Hecho-verificado (Node inexistente aquí) / no ejecutado (Kotlin) | `SolicitudSpviV2.tx` opcional; decodificador tolera claves desconocidas y clientes sin `tx`; `Spvi23.declaredTx` recorta y exige `^[A-Za-z0-9-]{4,30}$`, ignorando el campo si no cumple. Generator precarga, avisa «Transferencia declarada: X» y consulta `transactionOwner` para Libre / Ya usada con el ID. Sin migración de Room. |
+| **G7** reserva atómica | Hecho-no-ejecutado (Kotlin) | Se reutiliza `tx_reservations` con `txKey` (recorte, minúsculas, sin espacios internos). Pruebas escritas de duplicado bloqueado y de corrección por el operador. **No ejecutadas**. |
+| **G8** varias apps (servicio) | **Hecho-verificado** | `npm test`: **128/128** (7 nuevas). Aislamiento entre `DSHALEV`, `SHALEV-ANDROID` y `SHALEV-IOS`, `CODE_UNAVAILABLE` cruzado, misma clave con licencias en apps distintas sin rollover ni cascada cruzada, `MAX_SECUNDARIAS=0` en las tres y lectura de `ALLOWED_APPS` desde el entorno. |
+| **G8** selector de Lotes | Hecho-no-ejecutado (Kotlin) | `RedeemApps.allowed` alimenta el selector y el aviso «Este código solo sirve en la app elegida: X»; `create()` rechaza una app fuera de la lista antes de firmar. Pruebas escritas, **no ejecutadas**. |
+| **G8** guía del Worker | Hecho (solo documentación) | Nueva sección «4.1 Autorizar un appId nuevo». No se ejecutó Wrangler ni se tocó D1. |
+| **G9** documentación | Hecho | Este cierre, `README.md`, `SECURITY.md`, `docs/GL_ESPECIFICACION.md` y la guía. |
+
+### Contradicciones con el encargo, resueltas por el código (gana el código)
+
+1. **`RequestPayload` / `maxAge` / `maxFutureSkew` no existen con esos nombres.** En este repositorio la solicitud SPVIR1 es `SolicitudSpviV2` (`domain/model/SpviV2.kt`) y la ventana es `RequestFreshness.maxAge` / `maxFutureSkew`. Se implementó sobre esos nombres.
+2. **El servicio de canje no valida antigüedad de solicitudes.** Su ventana es `MAX_CLOCK_SKEW_MS` (5 min) sobre el sobre firmado del cliente; los 7 días son del emisor. No se modificó el Worker.
+3. **`consumed_nonces` y `tx_reservations` son tablas de Room en el APK de GL**, no del Worker, y no tienen limpieza por antigüedad. No se añadió ninguna.
+4. **El campo `tx` va en el JSON cifrado del cliente Shalev.** GL puede leerlo y precargarlo, pero un cliente aún no editado nunca lo enviará: no rompe nada, simplemente llega `null`. Publicar el texto «Vale 7 días» y enviar `tx` exige cambios en el repositorio Shalev, fuera de este encargo.
+5. **`CrearLoteCanjeUseCase` solo valida el formato del appId** (`^[A-Za-z0-9][A-Za-z0-9._-]{1,63}$`). La restricción a las tres apps de Shalev vive en la pantalla (`RedeemApps`), no en el acuñador.
+
+### Archivos Kotlin tocados y **no verificados por compilación** (G6–G8)
+
+Producción (`app/src/main/java/dev/gl/license/`):
+- `core/AppError.kt` — mensaje de `RequestExpired` derivado de las constantes.
+- `domain/usecase/RequestFreshness.kt` — 7 días / 2 h, inclusivo, fail-closed.
+- `domain/model/SpviV2.kt` — campo `tx`.
+- `security/Spvi23.kt` — `declaredTx`, normalización tolerante.
+- `domain/repository/Repositories.kt` — `transactionOwner` con implementación por defecto.
+- `domain/model/RedeemApps.kt` (nuevo) — apps permitidas y aviso.
+- `data/local/Db.kt` — consulta `ownerByTxNumber`.
+- `data/local/LicenseRepositoryImpl.kt` — `transactionOwner`.
+- `presentation/generator/GeneratorViewModel.kt` — precarga, aviso, Libre/Ya usada, nuevo parámetro `licencias`.
+- `presentation/generator/GeneratorScreen.kt` — textos y estados de transferencia.
+- `presentation/lotes/LotesViewModel.kt` — `appOptions`, `appNotice`, rechazo previo.
+- `presentation/lotes/LotesScreen.kt` — selector desde `RedeemApps` + aviso.
+- `app/src/main/res/values/strings.xml` — tres cadenas nuevas.
+
+Pruebas JVM escritas y **no ejecutadas** (`app/src/test/java/dev/gl/license/`):
+`RequestFreshnessTest.kt`, `NonceRetentionTest.kt`, `FieldValidatorTest.kt`, `RenovacionSpviTest.kt`, `DeclaredTransferTest.kt`, `DeclaredTransferRoomTest.kt`, `GeneratorViewModelTest.kt`, `TransactionMatchingTest.kt`, `DomainLayerTest.kt`, `RedeemAppsTest.kt`, `LotesViewModelTest.kt`.
+
+### Pasos del propietario (en este orden)
+
+1. Compilar y publicar el **APK de GL** (7 días, precarga de `tx`, selector de apps) y probarlo en el teléfono del emisor.
+2. Publicar los clientes **Shalev** que digan «Vale 7 días» y envíen `tx`. Sin este paso, la ventana ampliada no aporta nada a los usuarios, pero tampoco rompe a los clientes viejos.
+3. Autorizar `SHALEV-ANDROID` y `SHALEV-IOS` en el Worker (`vars.ALLOWED_APPS` → `wrangler deploy` → `/health` → lote por app → importar → humo con `APP_ID=...`), según el apartado 4.1 de la guía.
+4. Sigue pendiente la decisión sobre purgar del historial de Git los identificadores de Cloudflare retirados en G1.
+
+### Qué NO se verificó
+
+- **Kotlin no se compiló ni se ejecutó**: ni `:app:assembleDebug`, ni `:app:testDebugUnitTest`, ni pruebas instrumentadas. Las afirmaciones sobre Lotes, Generator y SPVIR1 se basan en revisión de código y en las pruebas escritas, no en resultados.
+- No se probó en dispositivo la precarga de `tx`, el aviso Libre/Ya usada, el selector de apps ni la ventana de 7 días de extremo a extremo con un cliente Shalev real.
+- No se ejecutó Wrangler, no se desplegó, no se tocó D1, `ALLOWED_APPS` real, claves, peppers ni lotes reales.
+- `services/redeem` (**128/128**) y `tools/directorio` (**11/11**) sí se ejecutaron aquí con Node 22; no cubren Android ni el entorno desplegado.

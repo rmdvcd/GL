@@ -72,8 +72,8 @@ object Spvi23 {
     private val devicePubRe = Regex("^[A-Za-z0-9_-]{44}$")
     private val renewalIdRe = Regex("^[A-Za-z0-9._:-]{1,64}$")
     /** Nº de transferencia declarado por el cliente; fuera de esto se ignora, no se rechaza. */
-    private val declaredTxRe = Regex("^[A-Za-z0-9-]{4,30}$")
     const val MAX_DECLARED_TX_CHARS = 30
+    private val declaredTxRe = Regex("^[A-Za-z0-9-]{4,$MAX_DECLARED_TX_CHARS}$")
     private const val MAX_REQUEST_CODE_CHARS = 16_384
     const val MAX_REQUEST_TEXT_CHARS = 16_512
     private const val MAX_REQUEST_BYTES = 12_288
