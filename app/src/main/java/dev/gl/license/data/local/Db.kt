@@ -89,6 +89,9 @@ interface LicenseDao {
     @Query("SELECT COUNT(*) FROM tx_reservations WHERE txKey=:txNumber")
     suspend fun countByTxNumber(txNumber: String): Int
 
+    @Query("SELECT licenseId FROM tx_reservations WHERE txKey=:txNumber LIMIT 1")
+    suspend fun ownerByTxNumber(txNumber: String): String?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: LicenseEntity)
 

@@ -121,3 +121,11 @@ Pruebas JVM tocadas, también sin ejecutar (`app/src/test/java/dev/gl/license/`)
 2. Si ampliar la ventana de frescura y coordinar el aviso en Shalev; los límites actuales siguen siendo 72 h / 2 h.
 3. Si incorporar un campo de nº de transferencia a la **solicitud**. La nota local de entrega no introduce ese campo ni modifica SPVIR1.
 4. Si purgar los metadatos de Cloudflare del historial, coordinando clones y ramas. No se reescribió Git ni se ejecutó Wrangler.
+
+### Anexo G6–G9 (encargo complementario del 2026-11-20)
+
+Estas notas **anulan** lo que el apartado G4 decía sobre «no ampliar la ventana» y las decisiones pendientes 2 y 3 del cierre anterior: el propietario pidió expresamente 7 días y el campo opcional `tx`.
+
+- **G6:** `RequestFreshness.maxAge` pasa de 72 h a 7 días (168 h) y `maxFutureSkew` sigue en 2 h. Es la única constante: la usan `FieldValidator` (v1), `EmitirSpvi2UseCase` (SPVIR1 v=2) y el texto de `AppError.RequestExpired`.
+- **Retención de nonces:** no hay ninguna limpieza por antigüedad de `consumed_nonces` ni de `tx_reservations`. No debe añadirse con menos de 14 días. La única liberación existente es manual y por `licenseId` (`releaseReservation`). Una prueba Room comprueba que un nonce consumido sigue rechazando a 7 días menos un segundo y a 14 días.
+- **G7:** `SolicitudSpviV2.tx` es opcional (`String?`, `@SerialName("tx")`). El decodificador tolera claves desconocidas (ya lo hacía: `ignoreUnknownKeys = true`) y clientes antiguos sin el campo. Al descifrar, `Spvi23.declaredTx` recorta espacios y exige `^[A-Za-z0-9-]{4,30}$`; si no cumple, el campo se ignora y **nunca** se rechaza la solicitud. Generator precarga el campo editable, muestra «Transferencia declarada: X» y consulta la reserva (`transactionOwner`) para indicar libre o ya usada con el ID de la licencia. La emisión sigue usando el número que confirma el operador y la misma reserva atómica (`txKey`). Sin migración de Room.

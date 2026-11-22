@@ -191,6 +191,15 @@ class RenovacionSpviTest {
     }
 
     @Test
+    fun laTransferenciaDeclaradaSoloPrecargaYNoCambiaLaEmision() = runTest {
+        // El caso de uso recibe el txNumber que confirma el operador, no el del DTO.
+        val declarada = sol().copy(tx = "TX-DECLARADA")
+
+        val r = emitir(declarada, MemLic(), txNumber = "TX-CONFIRMADA") as Outcome.Ok
+        assertThat(r.value.licencia.txNumber).isEqualTo("TX-CONFIRMADA")
+    }
+
+    @Test
     fun conservaTransaccionEnLicenciaSpvi() = runTest {
         val result = emitir(sol(), MemLic(), txNumber = "TX-SPVI") as Outcome.Ok
 

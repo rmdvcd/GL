@@ -71,6 +71,9 @@ object Spvi23 {
     private val nonceRe = Regex("^[A-Za-z0-9+/=_-]{16,128}$")
     private val devicePubRe = Regex("^[A-Za-z0-9_-]{44}$")
     private val renewalIdRe = Regex("^[A-Za-z0-9._:-]{1,64}$")
+    /** Nº de transferencia declarado por el cliente; fuera de esto se ignora, no se rechaza. */
+    private val declaredTxRe = Regex("^[A-Za-z0-9-]{4,30}$")
+    const val MAX_DECLARED_TX_CHARS = 30
     private const val MAX_REQUEST_CODE_CHARS = 16_384
     const val MAX_REQUEST_TEXT_CHARS = 16_512
     private const val MAX_REQUEST_BYTES = 12_288
@@ -141,10 +144,22 @@ object Spvi23 {
             } catch (_: Exception) {
                 return Outcome.Err(AppError.SpviDanada)
             }
-            validarSolicitud(dto)
+            // `tx` es opcional y tolerante: si no cumple el formato se ignora, nunca rechaza.
+            validarSolicitud(dto).let { r ->
+                if (r is Outcome.Ok) Outcome.Ok(r.value.copy(tx = declaredTx(r.value.tx))) else r
+            }
         } catch (_: Exception) {
             Outcome.Err(AppError.SpviDanada)
         }
+    }
+
+    /**
+     * Nº de transferencia declarado: recorta espacios y exige `^[A-Za-z0-9-]{4,30}$`.
+     * Devuelve null si no cumple; el campo es opcional y nunca invalida la solicitud.
+     */
+    fun declaredTx(raw: String?): String? {
+        val limpio = raw?.trim() ?: return null
+        return limpio.takeIf { declaredTxRe.matches(it) }
     }
 
     /** Validación reutilizable también antes de emitir cuando el DTO no proviene del descifrador. */

@@ -52,6 +52,7 @@ class TransactionMatchingTest {
                 FixedClock,
             ),
             EvaluarSolicitudHistorialUseCase(licencias, FixedClock),
+            licencias,
         )
     }
 

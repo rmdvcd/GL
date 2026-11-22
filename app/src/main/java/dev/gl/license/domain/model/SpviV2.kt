@@ -21,4 +21,10 @@ data class SolicitudSpviV2(
     @SerialName("renueva") val renueva: String? = null,
     @SerialName("amplia") val amplia: String? = null,
     @SerialName("recupera") val recupera: String? = null,
+    /**
+     * Nº de transferencia declarado por el cliente (opcional). Un cliente
+     * antiguo no lo envía; GL nunca rechaza la solicitud por este campo.
+     * El operador siempre puede corregirlo antes de emitir.
+     */
+    @SerialName("tx") val tx: String? = null,
 )

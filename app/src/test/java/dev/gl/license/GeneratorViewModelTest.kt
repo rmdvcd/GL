@@ -53,6 +53,7 @@ class GeneratorViewModelTest {
         renueva: String? = null,
         recupera: String? = null,
         amplia: String? = null,
+        tx: String? = null,
     ) = SolicitudSpviV2(
         v = 2,
         nombre = "Maria",
@@ -69,6 +70,7 @@ class GeneratorViewModelTest {
         renueva = renueva,
         recupera = recupera,
         amplia = amplia,
+        tx = tx,
     )
 
     private fun previaLic(id: String, venceSec: Long = 1_767_225_600L + 5 * 86_400L) = Licencia(
@@ -123,6 +125,7 @@ class GeneratorViewModelTest {
             puerta,
             EmitirSpvi2UseCase(puerta, lic, FixedClock),
             dev.gl.license.domain.usecase.EvaluarSolicitudHistorialUseCase(lic, FixedClock),
+            lic,
         )
     }
 
@@ -308,5 +311,53 @@ class GeneratorViewModelTest {
 
         assertThat(vm.ui.value.spvi).isNull()
         assertThat(vm.ui.value.error).isEqualTo(AppError.RecuperacionInvalida.userMessage)
+    }
+
+    @Test
+    fun spviConTransferenciaDeclaradaLaPrecargaYLaMuestra() = runTest {
+        val vm = vm(puerta = PuertaFake(solicitud = solSpvi(tx = "TX-778899")))
+        vm.onRawChange("SPVIR1:AAAA")
+
+        assertThat(vm.ui.value.txCliente).isEqualTo("TX-778899")
+        assertThat(vm.ui.value.declaredTx).isEqualTo("TX-778899")
+        assertThat(vm.ui.value.declaredTxNotice).isEqualTo("Transferencia declarada: TX-778899")
+        assertThat(vm.txLibre).isTrue()
+    }
+
+    @Test
+    fun spviSinTransferenciaDeclaradaNoPrecargaNada() = runTest {
+        val vm = vm(puerta = PuertaFake(solicitud = solSpvi()))
+        vm.onRawChange("SPVIR1:AAAA")
+
+        assertThat(vm.ui.value.txCliente).isEmpty()
+        assertThat(vm.ui.value.declaredTx).isNull()
+        assertThat(vm.ui.value.declaredTxNotice).isNull()
+    }
+
+    @Test
+    fun transferenciaYaUsadaMuestraLaLicenciaQueLaConsumio() = runTest {
+        val licencias = MemLic()
+        licencias.upsert(previaLic("previa-uuid").copy(txNumber = "TX-778899"))
+        val vm = vm(licencias = licencias, puerta = PuertaFake(solicitud = solSpvi(tx = "TX-778899")))
+        vm.onRawChange("SPVIR1:AAAA")
+
+        assertThat(vm.txLibre).isFalse()
+        assertThat(vm.txOwner).isEqualTo("previa-uuid")
+    }
+
+    @Test
+    fun elOperadorPuedeCorregirLaTransferenciaDeclarada() = runTest {
+        val licencias = MemLic()
+        licencias.upsert(previaLic("previa-uuid").copy(txNumber = "TX-778899"))
+        val vm = vm(licencias = licencias, puerta = PuertaFake(solicitud = solSpvi(tx = "TX-778899")))
+        vm.onRawChange("SPVIR1:AAAA")
+        assertThat(vm.txLibre).isFalse()
+
+        vm.onTxClienteChange("TX-990011")
+        vm.onTxSmsChange("TX-990011")
+
+        assertThat(vm.ui.value.txMatch).isTrue()
+        assertThat(vm.txLibre).isTrue()
+        assertThat(vm.txOwner).isNull()
     }
 }

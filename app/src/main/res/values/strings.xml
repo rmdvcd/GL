@@ -65,6 +65,9 @@
     <string name="tx_match_success">Transacción validada: los números coinciden</string>
     <string name="tx_mismatch_error">Los números de transacción no coinciden</string>
     <string name="tx_pending_hint">Introduce ambos números de transacción para validar el pago</string>
+    <string name="tx_declared">Transferencia declarada: %1$s</string>
+    <string name="tx_free">Transferencia libre en el registro local.</string>
+    <string name="tx_used">Transferencia ya usada por la licencia %1$s</string>
     <string name="field_license_code">Código de licencia</string>
     <string name="field_device_model">Dispositivo</string>
     <string name="field_accumulated_days">Periodo acumulado</string>

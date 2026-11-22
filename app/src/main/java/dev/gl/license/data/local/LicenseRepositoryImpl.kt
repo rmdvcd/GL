@@ -60,4 +60,9 @@ class LicenseRepositoryImpl @Inject constructor(
         if (txNumber.isBlank()) return false
         return dao.countByTxNumber(txKey(txNumber)) > 0
     }
+
+    override suspend fun transactionOwner(txNumber: String): String? {
+        if (txNumber.isBlank()) return null
+        return dao.ownerByTxNumber(txKey(txNumber))
+    }
 }
