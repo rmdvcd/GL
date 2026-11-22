@@ -53,26 +53,26 @@ class FieldValidatorTest {
     }
 
     @Test
-    fun rejectsRequestOlderThan72Hours() {
+    fun rejectsRequestOlderThanSevenDays() {
         val r = valid().copy(requestedAtIso = "2026-01-01T00:00:00Z")
-        val now = java.time.Instant.parse("2026-01-04T01:00:00Z") // 73 hours
+        val now = java.time.Instant.parse("2026-01-08T01:00:00Z") // 7 days + 1 hour
         val res = FieldValidator.validateRequest(r, now = now)
         assertThat(res).isInstanceOf(Outcome.Err::class.java)
         assertThat((res as Outcome.Err).error).isEqualTo(AppError.RequestExpired)
     }
 
     @Test
-    fun acceptsRequestWithin72Hours() {
+    fun acceptsRequestsWithinSevenDays() {
         val r = valid().copy(requestedAtIso = "2026-01-01T00:00:00Z")
-        val now = java.time.Instant.parse("2026-01-03T12:00:00Z") // 60 hours
+        val now = java.time.Instant.parse("2026-01-07T12:00:00Z") // 6.5 days
         val res = FieldValidator.validateRequest(r, now = now)
         assertThat(res).isInstanceOf(Outcome.Ok::class.java)
     }
 
     @Test
-    fun rejectsRequestJustBeyond72HourBoundaryInsteadOfRoundingToHours() {
+    fun rejectsRequestOneSecondBeyondSevenDayBoundary() {
         val r = valid().copy(requestedAtIso = "2026-01-01T00:00:00Z")
-        val now = java.time.Instant.parse("2026-01-04T00:00:01Z")
+        val now = java.time.Instant.parse("2026-01-08T00:00:01Z")
 
         val res = FieldValidator.validateRequest(r, now = now)
 
@@ -80,12 +80,12 @@ class FieldValidatorTest {
     }
 
     @Test
-    fun acceptsExactAgeAndFutureSkewBoundaries() {
+    fun acceptsExactSevenDayAgeAndFutureSkewBoundaries() {
         val base = java.time.Instant.parse("2026-01-01T00:00:00Z")
         val exactAge = valid().copy(requestedAtIso = base.toString())
         val exactFuture = valid().copy(requestedAtIso = base.plusSeconds(2 * 60 * 60L).toString())
 
-        assertThat(FieldValidator.validateRequest(exactAge, now = base.plusSeconds(72 * 60 * 60L)))
+        assertThat(FieldValidator.validateRequest(exactAge, now = base.plusSeconds(7 * 86_400L)))
             .isInstanceOf(Outcome.Ok::class.java)
         assertThat(FieldValidator.validateRequest(exactFuture, now = base))
             .isInstanceOf(Outcome.Ok::class.java)

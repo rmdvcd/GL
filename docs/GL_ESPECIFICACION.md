@@ -138,3 +138,13 @@ Primitivas (implementa exactamente así en tu lenguaje).
    verificar antes de descifrar; bytes del UUID tal cual; firmas por
    verificación, nunca por igualdad.
 ```
+
+## Notas de GL sobre frescura, nonce y versión (GL, no contrato de Shalev)
+
+Este anexo documenta lo que hace **GL** al recibir una solicitud; no cambia ningún byte del contrato anterior.
+
+- **Ventana única:** `solicitadaEn` se acepta entre 7 días (168 h) antes y 2 horas después del reloj del emisor, ambos extremos incluidos. La misma constante (`RequestFreshness.maxAge` / `maxFutureSkew`) se usa en el flujo v1 y en SPVIR1 v=2.
+- **Por qué ampliar de 72 h a 7 días es seguro:** el nonce de la solicitud se consume de forma atómica al emitir (tabla `consumed_nonces`, `INSERT` con conflicto = rechazo) y la licencia se liga a la `devicePub` de esa misma solicitud. Repetir una solicitud **ya emitida** sigue fallando con «La solicitud ya fue procesada» aunque se haga a los 7 días menos un segundo; solo se permite presentar más tarde una solicitud **no utilizada**.
+- **Retención:** GL no borra por antigüedad `consumed_nonces` ni `tx_reservations`, y no debe introducirse una limpieza con menos de 14 días. La única liberación es manual, por `licenseId`, desde el detalle del Registro.
+- **Mensaje del cliente:** con esta ventana, los clientes Shalev deben decir «Vale 7 días» en la parte legible de la solicitud (antes «Vale 72 horas»). El texto exacto del mensaje lo define Shalev; GL sigue tomando el código `SPVIR1:` de cualquier parte del texto.
+- **Orden de despliegue:** primero el APK del operador (GL con 7 días), después los clientes que digan «Vale 7 días». Un GL con 72 h rechazaría solicitudes de 3 a 7 días de antigüedad, por eso no se publican los clientes antes.
