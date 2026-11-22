@@ -17,7 +17,7 @@ ViewModels y casos de uso: constructor `@Inject` (no hace falta `@Binds`).
 - `AppError.userMessage` / `asUiMessage()`: genéricos, sin secretos.
 - Deduplicación de transacciones: `AppError.TransactionAlreadyUsed(tx)`.
 - `devicePub` es obligatorio para v1 (`AppError.DevicePubRequired`), pero GL no verifica attestation ni posesión de la clave privada; no debe describirse como una clave hardware-validada.
-- Frescura: `AppError.RequestExpired` fuera del margen exacto de 72 horas de antigüedad / 2 horas de adelanto, tanto en v1 como al emitir SPVI; `AppError.ClockFailure` si no puede leerse/parsearse la hora. Usa reloj de pared, sin resistencia a rollback ni consumo persistente de nonce.
+- Frescura: `AppError.RequestExpired` fuera del margen exacto de 7 días de antigüedad / 2 horas de adelanto, tanto en v1 como al emitir SPVI; `AppError.ClockFailure` si no puede leerse/parsearse la hora. Usa reloj de pared, sin resistencia a rollback, pero el nonce se consume de forma atómica al emitir y no se limpia por antigüedad.
 - AAD v1: `CryptoEngine.canonical()` concatena los campos UTF-8 con su longitud de 4 bytes big-endian; no es texto unido por `|`.
 
 ## Flujo de Licencias y Códigos

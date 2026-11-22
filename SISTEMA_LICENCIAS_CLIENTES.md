@@ -199,7 +199,7 @@ Tanto la solicitud como la licencia viajan encapsuladas en un Envelope JSON:
 - **AAD GCM para licencia:** `CryptoEngine.canonical(listOf("1", "ECIES-P256-AES256GCM-v1", licenseId))`.
 - `canonical` concatena campos UTF-8 prefijando cada uno con una longitud de 4 bytes big-endian. **No** se usa la representación textual con `|` que aparece en documentos antiguos; esos bytes son parte del contrato v1 y no deben cambiarse sin versionar.
 
-La frescura del emisor acepta como máximo 72 horas de antigüedad y 2 horas de adelanto, con comparación exacta. **No** consume ni persiste el nonce; la misma solicitud puede reproducirse si se vuelve a confirmar el pago. El reloj del emisor es de pared y no es resistente a rollback.
+La frescura del emisor acepta como máximo 7 días de antigüedad y 2 horas de adelanto, con comparación exacta. El nonce **sí** se consume de forma atómica al emitir (`consumed_nonces`, sin limpieza por antigüedad), así que una solicitud ya emitida no se puede repetir; solo se admite presentar más tarde una solicitud aún no utilizada. El reloj del emisor es de pared y no es resistente a rollback.
 
 ---
 
@@ -729,10 +729,10 @@ Estos puntos son tareas/recomendaciones para el **cliente externo**; no indican 
 |---|---|---|
 | **1** | Clave maestra de desarrollo | **Eliminada (2026-10-17):** no existe `MASTER_KEY_CODE`, ni la tarjeta en `TrustScreen`, ni `MasterKey` en el emisor. El cliente solo puede activar por envelope firmado. |
 | **2** | Reutilización de transacciones | Se consulta `txNumber` contra licencias guardadas y los errores de lectura bloquean emisión; SPVI también conserva el valor. No hay índice único ni reserva atómica; existe una carrera hasta pulsar Registrar. |
-| **3** | Clock rollback / vigencia | v1 y la emisión SPVI aplican una ventana exacta de 72 h de antigüedad y 2 h futura. El reloj es de pared; no hay watermark ni resistencia a rollback en GL. |
+| **3** | Clock rollback / vigencia | v1 y la emisión SPVI aplican una ventana exacta de 7 días de antigüedad y 2 h futura. El reloj es de pared; no hay watermark ni resistencia a rollback en GL. |
 | **4** | Clonación de `deviceId` / `devicePub` | GL exige una clave EC P-256 parseable y cifra a esa clave. No hay proof-of-possession, attestation ni vínculo con `deviceId`. |
 | **5** | Omisión o malformación de `devicePub` | Obligatoria en v1; se rechaza si falta o no parsea como EC P-256. |
-| **6** | Replay de solicitudes | Ventana temporal limitada; el nonce no se consume ni persiste, así que replay dentro de la ventana sigue siendo posible. |
+| **6** | Replay de solicitudes | Ventana temporal ampliada a 7 días, pero el nonce se consume al emitir y no tiene limpieza por antigüedad: el replay de una solicitud **ya emitida** se rechaza. Solo puede repetirse una solicitud no utilizada. |
 | **7** | Cuota de apps secundarias | No hay módulo de sub-tokens/verificación de apps secundarias en este repositorio; es responsabilidad del cliente. |
 | **8** | Ambigüedad de AAD | El contrato v1 usa `canonical()` con longitud de 4 bytes big-endian. No cambiar esos bytes sin subir versión/definir compatibilidad. |
 
