@@ -28,8 +28,12 @@ class LotesViewModel @Inject constructor(db: GlDatabase, private val mint: Crear
     var busy by mutableStateOf(false)
         private set
     fun select(id: String) { preview = emptyList(); selected = id }
+    /** Apps ofrecidas por el selector; el lote queda atado a la elegida. */
+    val appOptions: List<String> get() = RedeemApps.allowed
+    fun appNotice(app: String): String = RedeemApps.notice(app)
     fun create(app: String, count: Int, type: TipoLicencia, deadline: String?) {
         if (busy) return
+        if (!RedeemApps.isAllowed(app)) { message = "Elige una app de la lista."; return }
         if (count !in 1..500) { message = "Indica entre 1 y 500 códigos."; return }
         busy = true
         viewModelScope.launch {

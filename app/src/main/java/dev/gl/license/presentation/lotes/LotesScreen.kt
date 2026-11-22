@@ -59,7 +59,8 @@ fun LotesScreen(vm: LotesViewModel = hiltViewModel()) {
     LazyColumn(modifier=Modifier.fillMaxSize().padding(16.dp), verticalArrangement=Arrangement.spacedBy(6.dp)) {
         item {
             Text("Lotes de canje",style=MaterialTheme.typography.headlineSmall)
-            Choice("Aplicación",app,listOf("DSHALEV","SHALEV-ANDROID","SHALEV-IOS")){app=it}
+            Choice("Aplicación",app,vm.appOptions){app=it}
+            Text(vm.appNotice(app),style=MaterialTheme.typography.bodySmall)
             Choice("Tipo",type.name,TipoLicencia.values().map { it.name }) { type=TipoLicencia.valueOf(it) }
             OutlinedTextField(count,{count=it.take(3)},label={Text("Cantidad (1–500)")})
             OutlinedTextField(deadline,{deadline=it.take(32)},label={Text("Canjear antes de (UTC ISO, opcional)")})
