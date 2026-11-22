@@ -26,7 +26,11 @@ test("raíz de PRUEBA cifrada, bootstrap, rotación y verificación por CLI", (t
       { cwd, env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
     );
   const root = cli("gen-root", "--out", "root.enc").trim().split(" ")[0];
-  assert.equal(statSync(join(cwd, "root.enc")).mode & 0o777, 0o600);
+  // Windows no aplica modos POSIX: un fichero normal reporta 0o666 aunque el
+  // CLI pida 0o600. Solo tiene sentido comprobar el permiso en POSIX.
+  if (process.platform !== "win32") {
+    assert.equal(statSync(join(cwd, "root.enc")).mode & 0o777, 0o600);
+  }
   cli("bootstrap-from-trust", "--out", "src.json");
   const v = JSON.parse(
     readFileSync(
