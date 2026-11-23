@@ -226,24 +226,7 @@ El lote JSON contiene **códigos en claro**: tras repartirlos, guárdalo cifrado
 
 ## 9. Prueba de humo contra el Worker
 
-Crea la carpeta `scripts/` si no existe y guarda este ejemplo como `scripts/smoke.mjs`. Úsalo solo en staging: genera una clave efímera distinta en cada ejecución.
-
-```js
-import { RedeemClient, MemoryLicenseStore } from "../src/client/redeem-client.js";
-import { generateP256KeyPair } from "../src/keys.js";
-
-const client = await RedeemClient.create({
-  baseUrl: process.env.BASE_URL,
-  appId: process.env.APP_ID ?? "DSHALEV",
-  pinnedKeys: { [process.env.KID ?? "gl-redeem-v1"]: process.env.SERVICE_PUBLIC_KEY },
-  deviceKeys: await generateP256KeyPair(),
-  store: new MemoryLicenseStore(),
-  fetchImpl: fetch,
-  now: () => Date.now(),
-});
-const r = await client.activate(process.argv[2]);
-console.log("OK", r.license.status, r.license.expiresAt, "restored =", r.restored);
-```
+El script ya está en el repositorio: `scripts/smoke.mjs`. Úsalo solo en staging: genera una clave efímera distinta en cada ejecución y sale con código 1 ante cualquier error.
 
 ```bash
 # BASE_URL es la URL de staging comprobada en el paso 7.
