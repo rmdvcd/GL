@@ -12,3 +12,6 @@ node_modules/
 /wrangler.jsonc
 /wrangler.production.jsonc
 .wrangler/
+
+# Secretos locales de wrangler dev (nunca versionar).
+.dev.vars
