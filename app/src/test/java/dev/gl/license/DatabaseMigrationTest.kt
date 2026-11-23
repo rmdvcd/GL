@@ -276,6 +276,51 @@ class DatabaseMigrationTest {
         }
     }
 
+    /**
+     * Dos licencias históricas pueden compartir `txNumber` (no había reserva atómica).
+     * La siembra debe usar INSERT OR IGNORE: una sola reserva, ninguna fila perdida y
+     * sin índice único sobre `licenses.txNumber` (que rompería la migración).
+     */
+    @Test fun v7SiembraReservasDuplicadasSinPerderFilas() {
+        openV5().use { helper ->
+            val db = helper.writableDatabase
+            db.execSQL(INSERT_LICENSE_V5)
+            db.execSQL(
+                "INSERT INTO licenses (id, firstName, lastName, nationalId, channel, phone, " +
+                    "deviceId, appName, type, requestedAtIso, issuedAtIso, expiresAtIso, status, " +
+                    "secundarias, precioCobrado, codigoCorto, nonce, version) VALUES ('w2','Jose','Nunez'," +
+                    "'86010112345','SMS','+5352345679','SPVI:golden0000000002','SPVI','MENSUAL'," +
+                    "'2026-10-03T19:00:00Z','2026-10-03T20:00:00Z','2026-11-02T20:00:00Z','ACTIVA'," +
+                    "2,8000,'ABCD-EFGH-IJKL-MNOQ','BBBBBBBBBBBBBBBBBBBBBB==',2)",
+            )
+            GlMigrations.M_5_6.migrate(db)
+            db.execSQL("UPDATE licenses SET txNumber='TX-777'")
+            GlMigrations.MIGRATION_6_7.migrate(db)
+
+            db.query("SELECT COUNT(*) FROM licenses").use {
+                assertThat(it.moveToFirst()).isTrue()
+                assertThat(it.getInt(0)).isEqualTo(2)
+            }
+            db.query("SELECT txKey, licenseId FROM tx_reservations").use {
+                assertThat(it.moveToFirst()).isTrue()
+                assertThat(it.getString(0)).isEqualTo("tx-777")
+                // Gana la primera por (issuedAtIso, id): 'w' < 'w2'.
+                assertThat(it.getString(1)).isEqualTo("w")
+                assertThat(it.moveToNext()).isFalse()
+            }
+            db.query("PRAGMA index_list('licenses')").use { indices ->
+                while (indices.moveToNext()) {
+                    val index = indices.getString(1)
+                    db.query("PRAGMA index_info($index)").use { cols ->
+                        while (cols.moveToNext()) {
+                            assertThat(cols.getString(2)).isNotEqualTo("txNumber")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     private fun openV4(): SupportSQLiteOpenHelper =
         FrameworkSQLiteOpenHelperFactory().create(
             SupportSQLiteOpenHelper.Configuration.builder(
